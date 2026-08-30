@@ -1,0 +1,144 @@
+SYNCSTORY — CÓMO USARLA DESDE TU CELULAR ANDROID
+==================================================
+Instrucciones pensadas para alguien que SOLO tiene un celular, sin computadora.
+
+Necesitás publicar los archivos en algún lugar con "https://" para que el
+celular pueda instalarla como app (esto lo pide el propio Android, no
+SyncStory). Abajo tenés DOS formas, elegí una. La OPCIÓN A es la más simple.
+
+
+═══════════════════════════════════════════
+OPCIÓN A — GitHub Pages (recomendada, gratis, con link fijo)
+═══════════════════════════════════════════
+
+PASO 1 — Descomprimir el ZIP
+-----------------------------
+1. Descargá "SyncStory.zip" en tu celular (por ejemplo desde el chat).
+2. Abrí la app "Archivos" de tu celular (o "Mis Archivos" / "Files by Google").
+3. Buscá "SyncStory.zip" en la carpeta Descargas.
+4. Tocalo y elegí "Extraer" o "Descomprimir".
+   (Si tu celular no tiene esa opción, instalá la app gratuita "ZArchiver"
+   desde Play Store y usala para extraer el ZIP).
+5. Te va a quedar una carpeta llamada "SyncStory" con varios archivos adentro.
+
+PASO 2 — Crear una cuenta gratuita en GitHub
+----------------------------------------------
+1. Abrí Chrome y andá a: github.com
+2. Tocá "Sign up" (Registrarte) y creá una cuenta gratuita con tu correo.
+   (Si ya tenés cuenta de GitHub, saltá este paso).
+
+PASO 3 — Crear un repositorio
+-------------------------------
+1. Ya con la sesión iniciada, tocá el botón "+" arriba y elegí
+   "New repository" (Nuevo repositorio).
+2. En "Repository name" escribí: syncstory
+3. Marcá que sea "Public" (Público).
+4. Tocá "Create repository".
+
+PASO 4 — Subir los archivos
+------------------------------
+1. Dentro del repositorio recién creado, tocá "Add file" y luego
+   "Upload files".
+2. Tocá donde dice "choose your files" y seleccioná TODOS los archivos
+   que extrajiste en el Paso 1: index.html, style.css, app.js,
+   manifest.json, sw.js, icon.svg (README.md y package.json también,
+   no molestan).
+   IMPORTANTE: subilos todos sueltos, no la carpeta comprimida.
+3. Bajá y tocá "Commit changes" (Confirmar cambios) para guardarlos.
+
+PASO 5 — Activar GitHub Pages
+--------------------------------
+1. Andá a la pestaña "Settings" (Configuración) del repositorio.
+2. En el menú de la izquierda, tocá "Pages".
+3. En "Branch", elegí "main" y en la carpeta dejá "/ (root)".
+4. Tocá "Save" (Guardar).
+5. Esperá 1 o 2 minutos. GitHub te va a mostrar un link parecido a:
+   https://tu-usuario.github.io/syncstory/
+6. Ese es tu link de SyncStory. Guardalo.
+
+PASO 6 — Abrir la app
+------------------------
+1. Abrí ese link en Chrome desde tu celular.
+2. Ya podés usar SyncStory normalmente (ver "CÓMO USAR LA APP" más abajo).
+
+
+═══════════════════════════════════════════
+OPCIÓN B — Termux (100% local, sin subir nada a internet)
+═══════════════════════════════════════════
+Esta opción corre la app directamente en tu celular, sin usar ninguna
+cuenta ni subir tus archivos a ningún lado. Requiere escribir 3 líneas
+en una app de terminal, nada más.
+
+1. Instalá la app gratuita "Termux" (buscala en F-Droid: f-droid.org,
+   se recomienda esa versión en vez de la de Play Store).
+2. Abrí Termux y escribí, una por una, estas líneas (Enter después de cada una):
+
+   pkg install python -y
+   cd storage/downloads/SyncStory
+   python -m http.server 8080
+
+   (Si Termux te pide permiso de almacenamiento la primera vez, aceptalo,
+   y volvé a intentar el segundo comando. La carpeta "SyncStory" debe ser
+   la que extrajiste del ZIP dentro de tu carpeta de Descargas).
+3. Dejá Termux abierto en segundo plano.
+4. Abrí Chrome y andá a: http://localhost:8080
+5. Ya podés usar SyncStory (ver más abajo). Mientras uses la app, no
+   cierres Termux.
+
+
+═══════════════════════════════════════════
+CÓMO INSTALARLA COMO APP (PWA)
+═══════════════════════════════════════════
+1. Con SyncStory abierta en Chrome (por cualquiera de las dos opciones),
+   tocá el menú de tres puntitos (⋮) arriba a la derecha.
+2. Elegí "Añadir a pantalla de inicio" o "Instalar aplicación".
+3. Confirmá. Va a aparecer un ícono de SyncStory en tu pantalla de inicio,
+   como si fuera una app instalada normal, sin la barra de Chrome.
+
+
+═══════════════════════════════════════════
+CÓMO USAR LA APP
+═══════════════════════════════════════════
+
+1. SELECCIONAR AUDIO
+   Tocá el recuadro "Seleccionar audio" y elegí tu archivo MP3, WAV o M4A
+   ya terminado (con la narración completa).
+
+2. SELECCIONAR IMÁGENES
+   Tocá el recuadro "Seleccionar imágenes" y elegí todas tus imágenes
+   a la vez. La app las va a ordenar sola por nombre, así que conviene
+   que se llamen 001, 002, 003, etc.
+
+3. ELEGIR IDIOMA
+   En "Idioma del audio" elegí Español, Inglés, o Automático.
+
+4. SINCRONIZAR
+   Tocá el botón "ANALIZAR Y SINCRONIZAR". La app va a:
+     - transcribir el audio (puede tardar unos minutos, es normal),
+     - calcular cuándo debe aparecer cada imagen,
+     - generar el video.
+   Vas a ver una barra de progreso y el estado de cada etapa.
+
+   MUY IMPORTANTE: durante este proceso, dejá la pantalla encendida
+   y no cambies de pestaña ni de app. Si el celular se bloquea o
+   cambiás de app, el proceso se puede interrumpir.
+
+5. VISTA PREVIA
+   Cuando termine, vas a ver un botón "▶ PREVISUALIZAR". Tocalo para
+   ver el video antes de descargarlo.
+
+6. DESCARGAR EL VIDEO
+   Tocá "DESCARGAR VIDEO". El archivo se guarda en tu carpeta de
+   Descargas con formato .webm (se puede abrir y editar en CapCut).
+
+
+═══════════════════════════════════════════
+SI ALGO NO FUNCIONA
+═══════════════════════════════════════════
+- La primera vez que sincronizás, la app descarga un modelo de
+  transcripción (unos 40-75 MB). Necesitás conexión a internet solo
+  esa primera vez; después queda guardado en el celular.
+- Si el celular se queda sin memoria con muchas imágenes, probá con
+  menos imágenes o un audio más corto.
+- Todo el procesamiento ocurre en tu celular: tu audio y tus imágenes
+  nunca se suben a ningún servidor.

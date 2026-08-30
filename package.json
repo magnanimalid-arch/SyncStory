@@ -1,0 +1,10 @@
+{
+  "name": "syncstory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Convierte un audio narrado y una serie de imágenes en un video sincronizado, 100% en el navegador. No requiere build ni instalación de dependencias: index.html se puede servir tal cual.",
+  "scripts": {
+    "start": "npx --yes serve . -l 3000"
+  },
+  "note": "Este proyecto NO tiene dependencias de build ni de runtime: Transformers.js se carga desde CDN directamente en app.js. El script 'start' es opcional y solo sirve si abrís el proyecto desde una computadora con Node.js instalado. Desde un celular Android no hace falta este archivo: seguí COMO_USAR_EN_ANDROID.txt."
+}

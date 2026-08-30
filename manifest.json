@@ -1,0 +1,14 @@
+{
+  "name": "SyncStory",
+  "short_name": "SyncStory",
+  "description": "Convierte un audio narrado y una serie de imágenes en un video sincronizado, todo en tu navegador.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0d0f",
+  "theme_color": "#0a0d0f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

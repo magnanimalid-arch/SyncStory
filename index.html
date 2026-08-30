@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SyncStory — audio a video sincronizado</title>
+<meta name="theme-color" content="#0a0d0f">
+<meta name="description" content="Convierte un audio narrado y una serie de imágenes en un video sincronizado, 100% en tu navegador, sin subir nada a ningún servidor.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="scan"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M2 16 Q6 6, 10 16 T18 16 T26 16 T30 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+    <span>SYNC<b>STORY</b></span>
+  </div>
+  <span class="tag">local · sin costo · sin servidor</span>
+</header>
+
+<main class="wrap">
+
+  <section class="card" id="card-inputs">
+    <p class="eyebrow">01 — material</p>
+
+    <label class="picker" for="audioInput">
+      <div class="picker-icon">♪</div>
+      <div class="picker-text">
+        <strong>Seleccionar audio</strong>
+        <span id="audioName">MP3, WAV o M4A</span>
+      </div>
+    </label>
+    <input type="file" id="audioInput" accept="audio/*" hidden>
+
+    <label class="picker" for="imagesInput">
+      <div class="picker-icon">▦</div>
+      <div class="picker-text">
+        <strong>Seleccionar imágenes</strong>
+        <span id="imagesName">JPG, JPEG o PNG — varias a la vez</span>
+      </div>
+    </label>
+    <input type="file" id="imagesInput" accept="image/png,image/jpeg" multiple hidden>
+
+    <div class="row">
+      <div class="field">
+        <label for="langSelect">Idioma del audio</label>
+        <select id="langSelect">
+          <option value="es">Español</option>
+          <option value="en">Inglés</option>
+          <option value="auto">Automático</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="modelSelect">Calidad de transcripción</label>
+        <select id="modelSelect">
+          <option value="Xenova/whisper-tiny" selected>Rápida (tiny, ~40 MB)</option>
+          <option value="Xenova/whisper-base">Más precisa (base, ~75 MB)</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="count-line">Imágenes seleccionadas: <b id="imgCount">0</b></p>
+
+    <button id="runBtn" class="btn-primary" disabled>ANALIZAR Y SINCRONIZAR</button>
+  </section>
+
+  <section class="card" id="card-progress" hidden>
+    <p class="eyebrow">02 — proceso</p>
+    <div class="progress-outer">
+      <div class="progress-inner" id="progressBar"></div>
+    </div>
+    <p class="status-line" id="statusLine">Preparando…</p>
+    <p class="status-sub" id="statusSub"></p>
+  </section>
+
+  <section class="card" id="card-result" hidden>
+    <p class="eyebrow">03 — resultado</p>
+    <video id="previewVideo" controls playsinline></video>
+    <div class="result-actions">
+      <button id="previewBtn" class="btn-secondary">▶ PREVISUALIZAR</button>
+      <a id="downloadBtn" class="btn-primary" download="syncstory.webm">DESCARGAR VIDEO</a>
+    </div>
+    <button id="resetBtn" class="btn-ghost">Empezar de nuevo</button>
+  </section>
+
+  <section class="card card-error" id="card-error" hidden>
+    <p class="eyebrow">atención</p>
+    <p id="errorText"></p>
+    <button id="errorRetryBtn" class="btn-ghost">Volver a intentar</button>
+  </section>
+
+  <p class="footnote">Todo el procesamiento ocurre en este dispositivo. No se sube audio ni imágenes a ningún servidor. Mantén la pantalla encendida y esta pestaña en primer plano mientras se genera el video.</p>
+
+</main>
+
+<canvas id="workCanvas" width="1280" height="720" hidden></canvas>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
