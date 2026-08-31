@@ -13,6 +13,7 @@ env.allowLocalModels = false;
 const el = {
   audioInput: document.getElementById("audioInput"),
   imagesInput: document.getElementById("imagesInput"),
+  formatSelect: document.getElementById("formatSelect"),
   audioName: document.getElementById("audioName"),
   imagesName: document.getElementById("imagesName"),
   imgCount: document.getElementById("imgCount"),
