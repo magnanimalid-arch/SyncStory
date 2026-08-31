@@ -1,4 +1,4 @@
-// SyncStory — Sincronización Híbrida + Licencias 30 Días + Transiciones Elegantes CapCut
+// SyncStory — Sincronización Híbrida + Licencias 30 Días + Transiciones Elegantes CapCut + Ken Burns 60fps
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
 env.allowLocalModels = false;
@@ -20,7 +20,6 @@ function generarFirma(fechaStr) {
   return Math.abs(hash).toString(16).toUpperCase();
 }
 
-// Función global accesible desde administrador.html o la consola
 window.generarLicencia = function(dias = 30) {
   const pinIngresado = prompt("Ingresa tu PIN de Administrador:");
   if (pinIngresado !== PIN_ADMIN) {
@@ -358,7 +357,7 @@ function loadImages(files) {
 }
 
 // ==========================================
-// GENERADOR DE LÍNEA DE TIEMPO MULTI-TRANSICIÓN
+// LÍNEA DE TIEMPO Y ANIMACIONES DINÁMICAS
 // ==========================================
 
 function buildHybridTimeline(loadedImages, segments, totalDuration) {
@@ -386,7 +385,7 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
 
-  const zoomTypes = ["zoom_in", "zoom_out", "pull_out_dramatic"];
+  const zoomTypes = ["zoom_in_pan_right", "zoom_out_pan_left", "pull_out_dramatic"];
   
   const transitionCatalog = [
     "crossfade", 
@@ -423,7 +422,6 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
         if (available.length === 0) available = transitionCatalog;
 
         activeTransition = available[Math.floor(Math.random() * available.length)];
-        
         recentTransitions.push(activeTransition);
         if (recentTransitions.length > 3) recentTransitions.shift();
       }
@@ -444,7 +442,7 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
 }
 
 // ==========================================
-// RENDERIZADO CANVAS CON ZOOMS Y TRANSICIONES
+// RENDERIZADO CANVAS CON MOVIMIENTO EFECTO KEN BURNS
 // ==========================================
 
 function drawImageWithZoom(image, canvas, progress, zoomType) {
@@ -452,17 +450,23 @@ function drawImageWithZoom(image, canvas, progress, zoomType) {
   const iw = image.naturalWidth, ih = image.naturalHeight;
   
   let scaleFactor = 1.0;
+  let offsetX = 0;
+  let offsetY = 0;
 
-  if (zoomType === "zoom_in") {
-    scaleFactor = 1.0 + (progress * 0.12);
-  } else if (zoomType === "zoom_out") {
-    scaleFactor = 1.15 - (progress * 0.12);
+  // Aumentado al 22% de zoom con paneo activo (Efecto Ken Burns)
+  if (zoomType === "zoom_in_pan_right") {
+    scaleFactor = 1.05 + (progress * 0.22);
+    offsetX = (progress - 0.5) * (cw * 0.05); 
+  } else if (zoomType === "zoom_out_pan_left") {
+    scaleFactor = 1.27 - (progress * 0.22);
+    offsetX = (0.5 - progress) * (cw * 0.05);
   } else if (zoomType === "pull_out_dramatic") {
-    if (progress < 0.85) {
-      scaleFactor = 1.0 + (progress * 0.08);
+    if (progress < 0.8) {
+      scaleFactor = 1.05 + (progress * 0.15);
+      offsetY = (progress - 0.5) * (ch * 0.04);
     } else {
-      const pullProgress = (progress - 0.85) / 0.15;
-      scaleFactor = 1.068 - (pullProgress * 0.10);
+      const pullProgress = (progress - 0.8) / 0.2;
+      scaleFactor = 1.17 - (pullProgress * 0.12);
     }
   }
 
@@ -470,7 +474,8 @@ function drawImageWithZoom(image, canvas, progress, zoomType) {
   const finalScale = baseScale * scaleFactor;
   
   const dw = iw * finalScale, dh = ih * finalScale;
-  const dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+  const dx = ((cw - dw) / 2) + offsetX;
+  const dy = ((ch - dh) / 2) + offsetY;
 
   ctx2d.drawImage(image, dx, dy, dw, dh);
 }
@@ -511,7 +516,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     const destNode = audioCtx.createMediaStreamDestination();
     sourceNode.connect(destNode);
 
-    const canvasStream = el.canvas.captureStream(30);
+    const canvasStream = el.canvas.captureStream(60); // Captura a 60 fps
     const combined = new MediaStream([
       ...canvasStream.getVideoTracks(),
       ...destNode.stream.getAudioTracks(),
@@ -525,12 +530,13 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
       return;
     }
 
-    const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 4_500_000 });
+    const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 6_000_000 });
     const chunks = [];
     recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
 
     let rafId = null;
     let finished = false;
+    let startTime = 0;
 
     function cleanupAndResolve() {
       if (finished) return;
@@ -543,9 +549,11 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     recorder.onstop = cleanupAndResolve;
     recorder.onerror = (e) => { finished = true; cancelAnimationFrame(rafId); reject(e.error || new Error("Error en MediaRecorder")); };
 
-    function frameLoop() {
+    function frameLoop(now) {
       if (finished) return;
-      const t = audioEl.currentTime;
+      
+      // Reloj de tiempo de alta precisión a 60 fps
+      const t = Math.min(duration, (now - startTime) / 1000);
 
       let currentIdx = 0;
       for (let i = 0; i < timeline.length; i++) {
@@ -571,7 +579,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
         const nextItem = timeline[currentIdx + 1];
         const transProgress = 1 - (timeRemaining / item.transDuration);
 
-        if (item.transition === "crossfade") {
+        if (item.transition === "crossfade" || item.transition === "zoom_blur") {
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.globalAlpha = transProgress;
@@ -580,71 +588,58 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
         } 
         else if (item.transition === "smooth_slide_right") {
           const shiftX = el.canvas.width * (1 - transProgress);
-          ctx2d.save();
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.save();
           ctx2d.translate(shiftX, 0);
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
         } 
         else if (item.transition === "smooth_slide_left") {
           const shiftX = -el.canvas.width * (1 - transProgress);
-          ctx2d.save();
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.save();
           ctx2d.translate(shiftX, 0);
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
         }
         else if (item.transition === "slide_up") {
           const shiftY = el.canvas.height * (1 - transProgress);
-          ctx2d.save();
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.save();
           ctx2d.translate(0, shiftY);
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
         }
         else if (item.transition === "soft_flash") {
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
-          ctx2d.fillStyle = `rgba(255, 255, 255, ${Math.sin(transProgress * Math.PI) * 0.35})`;
-          ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
-          if (transProgress > 0.5) {
-            drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
-          }
-        } 
-        else if (item.transition === "zoom_blur") {
           ctx2d.save();
-          ctx2d.globalAlpha = 1 - transProgress;
-          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.globalAlpha = transProgress;
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
-        }
+          ctx2d.fillStyle = `rgba(255, 255, 255, ${Math.sin(transProgress * Math.PI) * 0.4})`;
+          ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
+        } 
         else if (item.transition === "fade_dark") {
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
-          ctx2d.fillStyle = `rgba(0, 0, 0, ${Math.sin(transProgress * Math.PI)})`;
+          ctx2d.save();
+          ctx2d.globalAlpha = transProgress;
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
+          ctx2d.fillStyle = `rgba(0, 0, 0, ${Math.sin(transProgress * Math.PI) * 0.6})`;
           ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
-          if (transProgress > 0.5) {
-            drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
-          }
         }
         else if (item.transition === "soft_vignette") {
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
-          const gradient = ctx2d.createRadialGradient(
-            el.canvas.width / 2, el.canvas.height / 2, el.canvas.width * 0.3,
-            el.canvas.width / 2, el.canvas.height / 2, el.canvas.width * 0.7
-          );
-          gradient.addColorStop(0, 'rgba(0,0,0,0)');
-          gradient.addColorStop(1, `rgba(0,0,0,${Math.sin(transProgress * Math.PI) * 0.6})`);
-          ctx2d.fillStyle = gradient;
-          ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
-          if (transProgress > 0.5) {
-            drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
-          }
+          ctx2d.save();
+          ctx2d.globalAlpha = transProgress;
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
         }
       }
 
       onProgress(Math.min(1, t / duration));
 
-      if (t >= duration - 0.05 || audioEl.ended) {
+      if (t >= duration || audioEl.ended) {
         if (recorder.state === "recording") recorder.stop();
         return;
       }
@@ -658,7 +653,8 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
       recorder.start(250);
       audioEl.currentTime = 0;
       audioEl.play().then(() => {
-        rafId = requestAnimationFrame(frameLoop);
+        startTime = performance.now();
+        rafId = requestAnimationFrame((now) => frameLoop(now));
       }).catch(reject);
     };
   });
