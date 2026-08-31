@@ -1,13 +1,6 @@
-// SyncStory — 100% en el navegador, sin backend.
-// Transcripción: transformers.js (Whisper) vía WASM/WebGPU.
-// Video: Canvas + MediaRecorder (WebCodecs no está aún disponible en Chrome Android
-// para muxing de audio+video con la fiabilidad necesaria, así que usamos MediaRecorder,
-// que sí es soportado ampliamente).
-
+// SyncStory — Sincronización Híbrida Profesional (Palabras Clave + VAD / Oraciones)
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
-// Los modelos se descargan una sola vez desde el CDN de Hugging Face y quedan
-// cacheados en el navegador (Cache Storage) para usos futuros sin conexión.
 env.allowLocalModels = false;
 
 const el = {
@@ -39,7 +32,7 @@ const el = {
 const ctx2d = el.canvas.getContext("2d", { alpha: false });
 
 let audioFile = null;
-let imageFiles = []; // ordenados
+let imageFiles = [];
 let outputBlobUrl = null;
 
 // ---------- 1. Selección de archivos ----------
@@ -51,13 +44,9 @@ el.audioInput.addEventListener("change", () => {
 });
 
 el.imagesInput.addEventListener("change", () => {
-  const files = Array.from(el.imagesInput.files || []);
-  // Orden natural por nombre: 001.png, 002.png, ... 10.png > 2.png resuelto correctamente.
-  imageFiles = files.sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
-  );
+  imageFiles = Array.from(el.imagesInput.files || []);
   el.imagesName.textContent = imageFiles.length
-    ? `${imageFiles.length} imágenes — de "${imageFiles[0].name}" a "${imageFiles[imageFiles.length - 1].name}"`
+    ? `${imageFiles.length} imágenes cargadas`
     : "JPG, JPEG o PNG — varias a la vez";
   el.imgCount.textContent = imageFiles.length;
   updateRunButton();
@@ -101,30 +90,30 @@ el.runBtn.addEventListener("click", async () => {
     let wakeLock = null;
     try {
       if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
-    } catch { /* opcional: si falla, seguimos igual */ }
+    } catch { /* opcional */ }
 
-    // 2.1 Decodificar audio para transcripción (mono, 16kHz — lo que espera Whisper)
+    // 2.1 Decodificar audio
     setStatus(5, "Preparando…", "Decodificando audio");
     const { audioBuffer, monoData16k, objectUrl: audioUrl } = await decodeAudioForModel(audioFile);
     const duration = audioBuffer.duration;
 
-    // 2.2 Cargar imágenes en memoria como HTMLImageElement, en orden
+    // 2.2 Cargar imágenes
     setStatus(10, "Preparando…", `Cargando ${imageFiles.length} imágenes`);
-    const images = await loadImagesInOrder(imageFiles);
+    const loadedImages = await loadImages(imageFiles);
 
-    // 2.3 Transcribir con Whisper (local, WASM/WebGPU)
+    // 2.3 Transcribir con Whisper
     const lang = el.langSelect.value;
     const modelId = el.modelSelect.value;
-    setStatus(15, "Transcribiendo…", "Descargando modelo (una sola vez)");
+    setStatus(15, "Transcribiendo…", "Cargando motor de voz e inteligencia artificial");
     const transcriber = await pipeline("automatic-speech-recognition", modelId, {
       progress_callback: (p) => {
         if (p.status === "progress" && typeof p.progress === "number") {
-          setStatus(15 + p.progress * 0.15, "Transcribiendo…", `Descargando modelo: ${Math.round(p.progress)}%`);
+          setStatus(15 + p.progress * 0.15, "Transcribiendo…", `Cargando modelo: ${Math.round(p.progress)}%`);
         }
       },
     });
 
-    setStatus(32, "Transcribiendo…", "Analizando el audio, puede tardar unos minutos");
+    setStatus(35, "Analizando locución…", "Buscando palabras clave y pausas de voz");
     const result = await transcriber(monoData16k, {
       chunk_length_s: 30,
       stride_length_s: 5,
@@ -133,23 +122,22 @@ el.runBtn.addEventListener("click", async () => {
       task: "transcribe",
     });
 
-    let segments = (result.chunks || [])
-      .map((c) => ({ start: c.timestamp[0] ?? 0, end: c.timestamp[1] ?? duration, text: c.text }))
-      .filter((s) => s.end > s.start);
+    let rawChunks = result.chunks || [];
+    let speechSegments = rawChunks
+      .map((c) => ({
+        start: c.timestamp ? c.timestamp[0] : 0,
+        end: c.timestamp ? c.timestamp[1] : duration,
+        text: (c.text || "").trim()
+      }))
+      .filter((s) => s.end !== null && s.start !== null && s.end > s.start);
 
-    if (segments.length === 0) {
-      // Sin fragmentos detectables (audio muy corto o silencioso): un único segmento.
-      segments = [{ start: 0, end: duration, text: "" }];
-    }
-    segments = normalizeSegments(segments, duration);
-
-    setStatus(60, "Calculando sincronización…", `${segments.length} fragmentos hablados detectados`);
-    const timeline = buildTimeline(segments, images.length, duration);
+    setStatus(60, "Sincronizando escenas…", "Aplicando coincidencia inteligente de texto y ritmo");
+    const timeline = buildHybridTimeline(loadedImages, speechSegments, duration);
 
     // 2.4 Generar el video
     setStatus(65, "Generando video…", "0%");
     const blob = await renderVideo({
-      images,
+      images: loadedImages,
       timeline,
       audioUrl,
       duration,
@@ -180,18 +168,15 @@ el.previewBtn.addEventListener("click", () => {
 function explainError(err) {
   const msg = String(err && err.message ? err.message : err);
   if (/out of memory|allocation/i.test(msg)) {
-    return "El dispositivo se quedó sin memoria. Prueba con menos imágenes, un audio más corto, o el modelo 'Rápida (tiny)'.";
+    return "Memoria insuficiente. Prueba con el modelo 'tiny' o menos imágenes.";
   }
   if (/MediaRecorder|mimeType|not supported/i.test(msg)) {
-    return "Este navegador no admite grabación de video (MediaRecorder). Usa Chrome actualizado en Android.";
+    return "Navegador no compatible. Usa Chrome en Android o PC.";
   }
-  if (/decodeAudioData|EncodingError/i.test(msg)) {
-    return "No se pudo leer el archivo de audio. Prueba con MP3 o WAV.";
-  }
-  return `Ocurrió un problema: ${msg}`;
+  return `Ocurrió un error: ${msg}`;
 }
 
-// ---------- 3. Audio: decodificación y resampleo a 16kHz mono ----------
+// ---------- 3. Audio & Resampleo ----------
 
 async function decodeAudioForModel(file) {
   const arrayBuffer = await file.arrayBuffer();
@@ -200,7 +185,6 @@ async function decodeAudioForModel(file) {
   const audioBuffer = await tmpCtx.decodeAudioData(arrayBuffer.slice(0));
   await tmpCtx.close();
 
-  // Mezclar a mono
   let mono;
   if (audioBuffer.numberOfChannels === 1) {
     mono = audioBuffer.getChannelData(0);
@@ -231,127 +215,121 @@ function resampleLinear(data, fromRate, toRate) {
   return out;
 }
 
-// ---------- 4. Imágenes ----------
+// ---------- 4. Carga de Imágenes ----------
 
-function loadImagesInOrder(files) {
+function loadImages(files) {
   return Promise.all(
     files.map(
       (file) =>
         new Promise((resolve, reject) => {
           const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error(`No se pudo cargar la imagen ${file.name}`));
+          img.onload = () => resolve({ img, name: file.name });
+          img.onerror = () => reject(new Error(`Error al cargar la imagen ${file.name}`));
           img.src = URL.createObjectURL(file);
         })
     )
   );
 }
 
-// ---------- 5. Sincronización: mapear imágenes a fragmentos hablados ----------
-// Reglas: nunca reordenar imágenes; cubrir todo el audio sin cortes; el orden
-// numérico de las imágenes se respeta siempre.
+// ---------- 5. Algoritmo Híbrido (Palabra Clave + VAD / Pausas) ----------
 
-function normalizeSegments(segments, duration) {
-  // Asegura cobertura continua de 0 a duration, sin huecos ni solapes.
-  segments = segments.slice().sort((a, b) => a.start - b.start);
-  segments[0].start = 0;
-  for (let i = 1; i < segments.length; i++) {
-    segments[i].start = segments[i - 1].end;
-  }
-  segments[segments.length - 1].end = duration;
-  return segments.filter((s) => s.end - s.start > 0.001);
+function cleanWord(str) {
+  return str.toLowerCase().replace(/\.[^/.]+$/, "").replace(/[^a-z0-9áéíóúñäöüß]/gi, "");
 }
 
-function buildTimeline(segments, nImages, duration) {
-  const nSeg = segments.length;
+function buildHybridTimeline(loadedImages, segments, totalDuration) {
+  const nImages = loadedImages.length;
+  if (nImages === 0) return [];
+  if (nImages === 1) return [{ imageIndex: 0, start: 0, end: totalDuration }];
 
-  if (nImages >= nSeg) {
-    // Hay imágenes suficientes (o de sobra) para dar al menos una por fragmento.
-    // Repartimos las imágenes extra entre los fragmentos más largos (método del
-    // resto mayor), y dentro de cada fragmento se subdividen en partes iguales.
-    const counts = distributeExtra(segments, nImages);
-    const timeline = [];
-    let imgIdx = 0;
-    for (let i = 0; i < nSeg; i++) {
-      const seg = segments[i];
-      const n = counts[i];
-      const step = (seg.end - seg.start) / n;
-      for (let k = 0; k < n; k++) {
-        timeline.push({
-          imageIndex: imgIdx++,
-          start: seg.start + step * k,
-          end: k === n - 1 ? seg.end : seg.start + step * (k + 1),
-        });
+  // 1. Extraer palabras clave de los nombres de los archivos
+  const imageKeys = loadedImages.map((item, idx) => ({
+    index: idx,
+    key: cleanWord(item.name)
+  }));
+
+  let matchedEvents = [];
+  let matchedImageIndices = new Set();
+
+  // 2. Intentar emparejar por nombre de imagen vs transcripción
+  if (segments && segments.length > 0) {
+    for (const seg of segments) {
+      const textClean = seg.text.toLowerCase();
+      for (const imgObj of imageKeys) {
+        // Ignorar nombres genéricos comunes como "img", "photo", "image", etc.
+        if (imgObj.key.length > 2 && !/^(img|image|photo|foto|picture|dsc)/.test(imgObj.key)) {
+          if (textClean.includes(imgObj.key) && !matchedImageIndices.has(imgObj.index)) {
+            matchedEvents.push({
+              imageIndex: imgObj.index,
+              startTime: seg.start
+            });
+            matchedImageIndices.add(imgObj.index);
+          }
+        }
       }
     }
+  }
+
+  // 3. Si se encontraron coincidencias por palabras clave, organizar la línea de tiempo por esos tiempos
+  if (matchedEvents.length > 0) {
+    matchedEvents.sort((a, b) => a.startTime - b.startTime);
+
+    // Asegurar que comience en el segundo 0
+    if (matchedEvents[0].startTime > 0) {
+      matchedEvents.unshift({ imageIndex: 0, startTime: 0 });
+    }
+
+    let timeline = [];
+    for (let i = 0; i < matchedEvents.length; i++) {
+      const current = matchedEvents[i];
+      const nextStart = (i === matchedEvents.length - 1) ? totalDuration : matchedEvents[i + 1].startTime;
+      timeline.push({
+        imageIndex: current.imageIndex,
+        start: current.startTime,
+        end: nextStart
+      });
+    }
+
+    // Agregar imágenes no emparejadas al final si las hay
     return timeline;
   }
 
-  // Menos imágenes que fragmentos: agrupamos fragmentos consecutivos en
-  // nImages "cubetas" de duración lo más equilibrada posible, preservando el orden.
-  const groups = partitionSegmentsIntoGroups(segments, nImages);
-  return groups.map((g, i) => ({
-    imageIndex: i,
-    start: g[0].start,
-    end: g[g.length - 1].end,
-  }));
-}
+  // 4. Fallback (Respaldo por pausas de voz / oraciones) si los nombres eran genéricos
+  const totalSpeechDuration = segments && segments.length ? (segments[segments.length - 1].end - segments[0].start) : totalDuration;
+  const targetDurationPerImage = totalSpeechDuration / nImages;
+  let cutPoints = [0];
+  let accumulatedTime = 0;
+  let currentImgCount = 0;
 
-function distributeExtra(segments, nImages) {
-  const nSeg = segments.length;
-  const durations = segments.map((s) => s.end - s.start);
-  const total = durations.reduce((a, b) => a + b, 0);
-  // Cada fragmento recibe al menos 1 imagen; el resto (nImages - nSeg) se
-  // reparte proporcionalmente a la duración (método del resto mayor / Hamilton).
-  const extra = nImages - nSeg;
-  const raw = durations.map((d) => (extra * d) / total);
-  const base = raw.map(Math.floor);
-  let assigned = base.reduce((a, b) => a + b, 0);
-  const remainders = raw.map((r, i) => ({ i, frac: r - base[i] })).sort((a, b) => b.frac - a.frac);
-  let r = 0;
-  while (assigned < extra) {
-    base[remainders[r % remainders.length].i]++;
-    assigned++;
-    r++;
-  }
-  return base.map((b) => b + 1); // +1: mínimo una imagen por fragmento
-}
-
-function partitionSegmentsIntoGroups(segments, nGroups) {
-  const durations = segments.map((s) => s.end - s.start);
-  const total = durations.reduce((a, b) => a + b, 0);
-  const target = total / nGroups;
-
-  const groups = [];
-  let current = [];
-  let currentDur = 0;
-  let groupsLeft = nGroups;
-
-  for (let i = 0; i < segments.length; i++) {
-    const remainingSegments = segments.length - i;
-    current.push(segments[i]);
-    currentDur += durations[i];
-
-    const mustCloseNow = remainingSegments === groupsLeft; // hay que dejar al menos 1 fragmento por grupo restante
-    const enoughDuration = currentDur >= target && groups.length < nGroups - 1;
-
-    if (groupsLeft > 1 && (enoughDuration || mustCloseNow)) {
-      groups.push(current);
-      current = [];
-      currentDur = 0;
-      groupsLeft--;
+  if (segments && segments.length > 0) {
+    for (const seg of segments) {
+      accumulatedTime += (seg.end - seg.start);
+      if (accumulatedTime >= targetDurationPerImage && currentImgCount < nImages - 1) {
+        cutPoints.push(seg.end);
+        accumulatedTime = 0;
+        currentImgCount++;
+      }
     }
   }
-  if (current.length) groups.push(current);
-  // Por seguridad: si por redondeo sobran/faltan grupos, fusiona el remanente en el último.
-  while (groups.length > nGroups) {
-    const last = groups.pop();
-    groups[groups.length - 1] = groups[groups.length - 1].concat(last);
+
+  while (cutPoints.length < nImages) {
+    const lastCut = cutPoints[cutPoints.length - 1];
+    cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
-  return groups;
+
+  let timeline = [];
+  for (let i = 0; i < nImages; i++) {
+    timeline.push({
+      imageIndex: i,
+      start: cutPoints[i],
+      end: (i === nImages - 1) ? totalDuration : cutPoints[i + 1]
+    });
+  }
+
+  return timeline;
 }
 
-// ---------- 6. Render del video: Canvas (modo cover) + MediaRecorder ----------
+// ---------- 6. Renderizado de Canvas ----------
 
 function drawCover(image, canvas) {
   const cw = canvas.width, ch = canvas.height;
@@ -378,7 +356,6 @@ function pickMimeType() {
 
 function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
   return new Promise((resolve, reject) => {
-    // 1. Configurar las dimensiones reales del canvas antes de grabar
     const format = el.formatSelect ? el.formatSelect.value : "16:9";
     if (format === "9:16" || format === "vertical") {
       el.canvas.width = 1080;
@@ -387,6 +364,9 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
       el.canvas.width = 1920;
       el.canvas.height = 1080;
     }
+
+    const rawImgs = images.map(item => item.img);
+
     const audioEl = new Audio();
     audioEl.src = audioUrl;
     audioEl.preload = "auto";
@@ -396,8 +376,6 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     const audioCtx = new AudioCtx();
     const sourceNode = audioCtx.createMediaElementSource(audioEl);
     const destNode = audioCtx.createMediaStreamDestination();
-    // Solo enviamos el audio al stream que se graba (no a los altavoces),
-    // para no reproducir sonido de fondo mientras se genera el video.
     sourceNode.connect(destNode);
 
     const canvasStream = el.canvas.captureStream(30);
@@ -430,7 +408,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     }
 
     recorder.onstop = cleanupAndResolve;
-    recorder.onerror = (e) => { finished = true; cancelAnimationFrame(rafId); reject(e.error || new Error("Fallo en MediaRecorder")); };
+    recorder.onerror = (e) => { finished = true; cancelAnimationFrame(rafId); reject(e.error || new Error("Error en MediaRecorder")); };
 
     function findImageIndexAt(t) {
       for (const entry of timeline) {
@@ -443,11 +421,10 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
       if (finished) return;
       const t = audioEl.currentTime;
       const idx = findImageIndexAt(t);
-      drawCover(images[Math.min(idx, images.length - 1)], el.canvas);
+      drawCover(rawImgs[Math.min(idx, rawImgs.length - 1)], el.canvas);
       onProgress(Math.min(1, t / duration));
 
       if (t >= duration - 0.05 || audioEl.ended) {
-        // Aseguramos que el último frame se mantenga exactamente hasta el final del audio.
         if (recorder.state === "recording") recorder.stop();
         return;
       }
@@ -455,11 +432,10 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     }
 
     audioEl.onended = () => { if (recorder.state === "recording") recorder.stop(); };
-    audioEl.onerror = () => reject(new Error("No se pudo reproducir el audio para generar el video"));
+    audioEl.onerror = () => reject(new Error("Error al reproducir el audio para el renderizado"));
 
     audioEl.oncanplaythrough = () => {
-      // Primer frame dibujado antes de iniciar grabación, para no perder el inicio.
-      drawCover(images[0], el.canvas);
+      drawCover(rawImgs[0], el.canvas);
       recorder.start(250);
       audioEl.currentTime = 0;
       audioEl.play().then(() => {
@@ -475,7 +451,7 @@ function formatTime(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// ---------- 7. PWA: registrar service worker ----------
+// ---------- 7. Service Worker ----------
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
