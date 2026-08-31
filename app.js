@@ -20,6 +20,7 @@ function generarFirma(fechaStr) {
   return Math.abs(hash).toString(16).toUpperCase();
 }
 
+// Función global accesible desde administrador.html o la consola
 window.generarLicencia = function(dias = 30) {
   const pinIngresado = prompt("Ingresa tu PIN de Administrador:");
   if (pinIngresado !== PIN_ADMIN) {
@@ -37,7 +38,7 @@ window.generarLicencia = function(dias = 30) {
   const firma = generarFirma(fechaExp);
   const licencia = `SYNC-${fechaExp}-${firma}`;
   
-  alert(`LICENCIA GENERADA (${dias} DÍAS):\n\n${licencia}\n\nCópiala y envíala a tu cliente por WhatsApp.`);
+  alert(`LICENCIA GENERADA (${dias} DÍAS):\n\n${licencia}\n\nCópiala y envíala a tu cliente.`);
   return licencia;
 };
 
@@ -145,7 +146,7 @@ let outputBlobUrl = null;
 if (el.audioInput) {
   el.audioInput.addEventListener("change", () => {
     audioFile = el.audioInput.files[0] || null;
-    el.audioName.textContent = audioFile ? audioFile.name : "MP3, WAV o M4A";
+    if (el.audioName) el.audioName.textContent = audioFile ? audioFile.name : "MP3, WAV o M4A";
     updateRunButton();
   });
 }
@@ -153,10 +154,12 @@ if (el.audioInput) {
 if (el.imagesInput) {
   el.imagesInput.addEventListener("change", () => {
     imageFiles = Array.from(el.imagesInput.files || []);
-    el.imagesName.textContent = imageFiles.length
-      ? `${imageFiles.length} imágenes cargadas`
-      : "JPG, JPEG o PNG — varias a la vez";
-    el.imgCount.textContent = imageFiles.length;
+    if (el.imagesName) {
+      el.imagesName.textContent = imageFiles.length
+        ? `${imageFiles.length} imágenes cargadas`
+        : "JPG, JPEG o PNG — varias a la vez";
+    }
+    if (el.imgCount) el.imgCount.textContent = imageFiles.length;
     updateRunButton();
   });
 }
@@ -218,8 +221,9 @@ if (el.runBtn) {
       setStatus(10, "Preparando…", `Cargando ${imageFiles.length} imágenes`);
       const loadedImages = await loadImages(imageFiles);
 
-      const lang = el.langSelect.value;
-      const modelId = el.modelSelect.value;
+      const lang = el.langSelect ? el.langSelect.value : "es";
+      const modelId = el.modelSelect ? el.modelSelect.value : "Xenova/whisper-tiny";
+      
       setStatus(15, "Transcribiendo…", "Cargando motor de voz e IA");
       const transcriber = await pipeline("automatic-speech-recognition", modelId, {
         progress_callback: (p) => {
@@ -260,10 +264,12 @@ if (el.runBtn) {
       });
 
       outputBlobUrl = URL.createObjectURL(blob);
-      el.previewVideo.src = outputBlobUrl;
-      el.downloadBtn.href = outputBlobUrl;
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      el.downloadBtn.download = `syncstory-${stamp}.webm`;
+      if (el.previewVideo) el.previewVideo.src = outputBlobUrl;
+      if (el.downloadBtn) {
+        el.downloadBtn.href = outputBlobUrl;
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        el.downloadBtn.download = `syncstory-${stamp}.webm`;
+      }
 
       setStatus(100, "Finalizado", `Video de ${formatTime(duration)} listo`);
       show(el.cardResult);
@@ -278,8 +284,10 @@ if (el.runBtn) {
 
 if (el.previewBtn) {
   el.previewBtn.addEventListener("click", () => {
-    el.previewVideo.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.previewVideo.play().catch(() => {});
+    if (el.previewVideo) {
+      el.previewVideo.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.previewVideo.play().catch(() => {});
+    }
   });
 }
 
@@ -378,10 +386,8 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
 
-  // Animaciones de Zoom
   const zoomTypes = ["zoom_in", "zoom_out", "pull_out_dramatic"];
   
-  // Catálogo extendido de 8 transiciones elegantes
   const transitionCatalog = [
     "crossfade", 
     "smooth_slide_right", 
@@ -405,21 +411,19 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
       if (transitionState.remainingInBlock <= 0) {
         if (transitionState.mode === "transition") {
           transitionState.mode = "hard_cut";
-          transitionState.remainingInBlock = Math.floor(Math.random() * 2) + 2; // 2 o 3 sin transición
+          transitionState.remainingInBlock = Math.floor(Math.random() * 2) + 2;
         } else {
           transitionState.mode = "transition";
-          transitionState.remainingInBlock = Math.floor(Math.random() * 3) + 1; // 1, 2 o 3 con transición
+          transitionState.remainingInBlock = Math.floor(Math.random() * 3) + 1;
         }
       }
 
       if (transitionState.mode === "transition") {
-        // Filtrar para no repetir transiciones recientes
         let available = transitionCatalog.filter(t => !recentTransitions.includes(t));
-        if (available.length === 0) available = transitionCatalog; // Resguardo
+        if (available.length === 0) available = transitionCatalog;
 
         activeTransition = available[Math.floor(Math.random() * available.length)];
         
-        // Mantener memoria de las últimas 3 transiciones usadas
         recentTransitions.push(activeTransition);
         if (recentTransitions.length > 3) recentTransitions.shift();
       }
