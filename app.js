@@ -1,7 +1,120 @@
-// SyncStory — Sincronización Híbrida Profesional (Palabras Clave + VAD / Oraciones)
+// SyncStory — Sincronización Híbrida + Sistema de Licencias 30 Días (Protegido por PIN)
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
 env.allowLocalModels = false;
+
+// ==========================================
+// CONFIGURACIÓN Y SEGURIDAD DE LICENCIAS
+// ==========================================
+const CLAVE_SECRETA_ADMIN = "OroMusic2026"; // Frase secreta para firmar licencias
+const PIN_ADMIN = "5050"; // ¡CAMBIA ESTE PIN! Es la clave que usarás en tu celular para crear licencias
+
+// Algoritmo de firma matemática (Hash)
+function generarFirma(fechaStr) {
+  let str = fechaStr + CLAVE_SECRETA_ADMIN;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16).toUpperCase();
+}
+
+// Función protegida por PIN para generar licencias desde tu celular
+window.generarLicencia = function(dias = 30) {
+  const pinIngresado = prompt("Ingresa tu PIN de Administrador:");
+  if (pinIngresado !== PIN_ADMIN) {
+    alert("PIN incorrecto. Acceso denegado.");
+    return null;
+  }
+
+  const hoy = new Date();
+  hoy.setDate(hoy.getDate() + dias);
+  const yyyy = hoy.getFullYear();
+  const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dd = String(hoy.getDate()).padStart(2, '0');
+  
+  const fechaExp = `${yyyy}${mm}${dd}`;
+  const firma = generarFirma(fechaExp);
+  const licencia = `SYNC-${fechaExp}-${firma}`;
+  
+  alert(`LICENCIA GENERADA (${dias} DÍAS):\n\n${licencia}\n\nCopiala y envíala a tu cliente por WhatsApp.`);
+  return licencia;
+};
+
+// Validar fecha real en internet (Anti-trampas de reloj local)
+async function obtenerFechaRealInternet() {
+  try {
+    const res = await fetch("https://worldtimeapi.org/api/ip");
+    const data = await res.json();
+    return new Date(data.datetime);
+  } catch (e) {
+    try {
+      const res2 = await fetch("https://timeapi.io/api/Time/current/zone?timeZone=UTC");
+      const data2 = await res2.json();
+      return new Date(data2.dateTime);
+    } catch (err) {
+      return null;
+    }
+  }
+}
+
+async function verificarLicenciaCliente() {
+  let licenciaGuardada = localStorage.getItem("syncstory_license");
+  
+  if (!licenciaGuardada) {
+    licenciaGuardada = prompt("Ingresa tu clave de licencia de 30 días:");
+    if (!licenciaGuardada) return false;
+  }
+
+  licenciaGuardada = licenciaGuardada.trim().toUpperCase();
+  const partes = licenciaGuardada.split("-");
+
+  if (partes.length !== 3 || partes[0] !== "SYNC") {
+    alert("Formato de licencia inválido.");
+    localStorage.removeItem("syncstory_license");
+    return false;
+  }
+
+  const fechaExpStr = partes[1]; // AAAAMMDD
+  const firmaCliente = partes[2];
+
+  // 1. Verificar firma de seguridad
+  const firmaValida = generarFirma(fechaExpStr);
+  if (firmaCliente !== firmaValida) {
+    alert("Licencia inválida o alterada ilegítimamente.");
+    localStorage.removeItem("syncstory_license");
+    return false;
+  }
+
+  // 2. Extraer fecha de vencimiento
+  const ano = parseInt(fechaExpStr.substring(0, 4));
+  const mes = parseInt(fechaExpStr.substring(4, 6)) - 1;
+  const dia = parseInt(fechaExpStr.substring(6, 8));
+  const fechaExpiracion = new Date(ano, mes, dia, 23, 59, 59);
+
+  // 3. Consultar fecha real de internet
+  const fechaHoy = await obtenerFechaRealInternet();
+  
+  if (!fechaHoy) {
+    alert("Requieres conexión a internet para validar tu licencia.");
+    return false;
+  }
+
+  if (fechaHoy > fechaExpiracion) {
+    alert("Tu suscripción de 30 días ha vencido. Contacta a soporte para renovar.");
+    localStorage.removeItem("syncstory_license");
+    return false;
+  }
+
+  localStorage.setItem("syncstory_license", licenciaGuardada);
+  return true;
+}
+
+// ==========================================
+// ELEMENTOS DE LA INTERFAZ Y APLICACIÓN
+// ==========================================
 
 const el = {
   audioInput: document.getElementById("audioInput"),
@@ -29,7 +142,7 @@ const el = {
   canvas: document.getElementById("workCanvas"),
 };
 
-const ctx2d = el.canvas.getContext("2d", { alpha: false });
+const ctx2d = el.canvas ? el.canvas.getContext("2d", { alpha: false }) : null;
 
 let audioFile = null;
 let imageFiles = [];
@@ -37,133 +150,149 @@ let outputBlobUrl = null;
 
 // ---------- 1. Selección de archivos ----------
 
-el.audioInput.addEventListener("change", () => {
-  audioFile = el.audioInput.files[0] || null;
-  el.audioName.textContent = audioFile ? audioFile.name : "MP3, WAV o M4A";
-  updateRunButton();
-});
-
-el.imagesInput.addEventListener("change", () => {
-  imageFiles = Array.from(el.imagesInput.files || []);
-  el.imagesName.textContent = imageFiles.length
-    ? `${imageFiles.length} imágenes cargadas`
-    : "JPG, JPEG o PNG — varias a la vez";
-  el.imgCount.textContent = imageFiles.length;
-  updateRunButton();
-});
-
-function updateRunButton() {
-  el.runBtn.disabled = !(audioFile && imageFiles.length > 0);
+if (el.audioInput) {
+  el.audioInput.addEventListener("change", () => {
+    audioFile = el.audioInput.files[0] || null;
+    el.audioName.textContent = audioFile ? audioFile.name : "MP3, WAV o M4A";
+    updateRunButton();
+  });
 }
 
-el.resetBtn.addEventListener("click", () => location.reload());
-el.errorRetryBtn.addEventListener("click", () => {
-  show(el.cardInputs);
-  hide(el.cardError);
-});
+if (el.imagesInput) {
+  el.imagesInput.addEventListener("change", () => {
+    imageFiles = Array.from(el.imagesInput.files || []);
+    el.imagesName.textContent = imageFiles.length
+      ? `${imageFiles.length} imágenes cargadas`
+      : "JPG, JPEG o PNG — varias a la vez";
+    el.imgCount.textContent = imageFiles.length;
+    updateRunButton();
+  });
+}
 
-function show(node) { node.hidden = false; }
-function hide(node) { node.hidden = true; }
+function updateRunButton() {
+  if (el.runBtn) {
+    el.runBtn.disabled = !(audioFile && imageFiles.length > 0);
+  }
+}
+
+if (el.resetBtn) el.resetBtn.addEventListener("click", () => location.reload());
+if (el.errorRetryBtn) {
+  el.errorRetryBtn.addEventListener("click", () => {
+    show(el.cardInputs);
+    hide(el.cardError);
+  });
+}
+
+function show(node) { if (node) node.hidden = false; }
+function hide(node) { if (node) node.hidden = true; }
 
 function setStatus(pct, line, sub = "") {
-  el.progressBar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-  el.statusLine.textContent = line;
-  el.statusSub.textContent = sub;
+  if (el.progressBar) el.progressBar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  if (el.statusLine) el.statusLine.textContent = line;
+  if (el.statusSub) el.statusSub.textContent = sub;
 }
 
 function fail(message) {
   console.error(message);
   hide(el.cardProgress);
   show(el.cardError);
-  el.errorText.textContent = message;
+  if (el.errorText) el.errorText.textContent = message;
 }
 
-// ---------- 2. Flujo principal ----------
+// ---------- 2. Flujo Principal ----------
 
-el.runBtn.addEventListener("click", async () => {
-  hide(el.cardInputs);
-  hide(el.cardError);
-  show(el.cardProgress);
-  setStatus(2, "Preparando…", "Leyendo archivos");
+if (el.runBtn) {
+  el.runBtn.addEventListener("click", async () => {
+    // Verificar licencia antes de iniciar
+    const licenciaOk = await verificarLicenciaCliente();
+    if (!licenciaOk) return;
 
-  try {
-    let wakeLock = null;
+    hide(el.cardInputs);
+    hide(el.cardError);
+    show(el.cardProgress);
+    setStatus(2, "Preparando…", "Leyendo archivos");
+
     try {
-      if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
-    } catch { /* opcional */ }
+      let wakeLock = null;
+      try {
+        if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+      } catch { /* opcional */ }
 
-    // 2.1 Decodificar audio
-    setStatus(5, "Preparando…", "Decodificando audio");
-    const { audioBuffer, monoData16k, objectUrl: audioUrl } = await decodeAudioForModel(audioFile);
-    const duration = audioBuffer.duration;
+      // Decodificar audio
+      setStatus(5, "Preparando…", "Decodificando audio");
+      const { audioBuffer, monoData16k, objectUrl: audioUrl } = await decodeAudioForModel(audioFile);
+      const duration = audioBuffer.duration;
 
-    // 2.2 Cargar imágenes
-    setStatus(10, "Preparando…", `Cargando ${imageFiles.length} imágenes`);
-    const loadedImages = await loadImages(imageFiles);
+      // Cargar imágenes
+      setStatus(10, "Preparando…", `Cargando ${imageFiles.length} imágenes`);
+      const loadedImages = await loadImages(imageFiles);
 
-    // 2.3 Transcribir con Whisper
-    const lang = el.langSelect.value;
-    const modelId = el.modelSelect.value;
-    setStatus(15, "Transcribiendo…", "Cargando motor de voz e inteligencia artificial");
-    const transcriber = await pipeline("automatic-speech-recognition", modelId, {
-      progress_callback: (p) => {
-        if (p.status === "progress" && typeof p.progress === "number") {
-          setStatus(15 + p.progress * 0.15, "Transcribiendo…", `Cargando modelo: ${Math.round(p.progress)}%`);
-        }
-      },
-    });
+      // Transcribir con Whisper
+      const lang = el.langSelect.value;
+      const modelId = el.modelSelect.value;
+      setStatus(15, "Transcribiendo…", "Cargando motor de voz e IA");
+      const transcriber = await pipeline("automatic-speech-recognition", modelId, {
+        progress_callback: (p) => {
+          if (p.status === "progress" && typeof p.progress === "number") {
+            setStatus(15 + p.progress * 0.15, "Transcribiendo…", `Cargando modelo: ${Math.round(p.progress)}%`);
+          }
+        },
+      });
 
-    setStatus(35, "Analizando locución…", "Buscando palabras clave y pausas de voz");
-    const result = await transcriber(monoData16k, {
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      return_timestamps: true,
-      language: lang === "auto" ? null : lang,
-      task: "transcribe",
-    });
+      setStatus(35, "Analizando locución…", "Buscando palabras clave y pausas de voz");
+      const result = await transcriber(monoData16k, {
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        return_timestamps: true,
+        language: lang === "auto" ? null : lang,
+        task: "transcribe",
+      });
 
-    let rawChunks = result.chunks || [];
-    let speechSegments = rawChunks
-      .map((c) => ({
-        start: c.timestamp ? c.timestamp[0] : 0,
-        end: c.timestamp ? c.timestamp[1] : duration,
-        text: (c.text || "").trim()
-      }))
-      .filter((s) => s.end !== null && s.start !== null && s.end > s.start);
+      let rawChunks = result.chunks || [];
+      let speechSegments = rawChunks
+        .map((c) => ({
+          start: c.timestamp ? c.timestamp[0] : 0,
+          end: c.timestamp ? c.timestamp[1] : duration,
+          text: (c.text || "").trim()
+        }))
+        .filter((s) => s.end !== null && s.start !== null && s.end > s.start);
 
-    setStatus(60, "Sincronizando escenas…", "Aplicando coincidencia inteligente de texto y ritmo");
-    const timeline = buildHybridTimeline(loadedImages, speechSegments, duration);
+      setStatus(60, "Sincronizando escenas…", "Aplicando coincidencia inteligente");
+      const timeline = buildHybridTimeline(loadedImages, speechSegments, duration);
 
-    // 2.4 Generar el video
-    setStatus(65, "Generando video…", "0%");
-    const blob = await renderVideo({
-      images: loadedImages,
-      timeline,
-      audioUrl,
-      duration,
-      onProgress: (frac) => setStatus(65 + frac * 35, "Generando video…", `${Math.round(frac * 100)}%`),
-    });
+      // Generar video
+      setStatus(65, "Generando video…", "0%");
+      const blob = await renderVideo({
+        images: loadedImages,
+        timeline,
+        audioUrl,
+        duration,
+        onProgress: (frac) => setStatus(65 + frac * 35, "Generando video…", `${Math.round(frac * 100)}%`),
+      });
 
-    outputBlobUrl = URL.createObjectURL(blob);
-    el.previewVideo.src = outputBlobUrl;
-    el.downloadBtn.href = outputBlobUrl;
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    el.downloadBtn.download = `syncstory-${stamp}.webm`;
+      outputBlobUrl = URL.createObjectURL(blob);
+      el.previewVideo.src = outputBlobUrl;
+      el.downloadBtn.href = outputBlobUrl;
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      el.downloadBtn.download = `syncstory-${stamp}.webm`;
 
-    setStatus(100, "Finalizado", `Video de ${formatTime(duration)} listo`);
-    show(el.cardResult);
-    hide(el.cardProgress);
+      setStatus(100, "Finalizado", `Video de ${formatTime(duration)} listo`);
+      show(el.cardResult);
+      hide(el.cardProgress);
 
-    if (wakeLock) wakeLock.release().catch(() => {});
-  } catch (err) {
-    fail(explainError(err));
-  }
-});
+      if (wakeLock) wakeLock.release().catch(() => {});
+    } catch (err) {
+      fail(explainError(err));
+    }
+  });
+}
 
-el.previewBtn.addEventListener("click", () => {
-  el.previewVideo.scrollIntoView({ behavior: "smooth", block: "center" });
-  el.previewVideo.play().catch(() => {});
-});
+if (el.previewBtn) {
+  el.previewBtn.addEventListener("click", () => {
+    el.previewVideo.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.previewVideo.play().catch(() => {});
+  });
+}
 
 function explainError(err) {
   const msg = String(err && err.message ? err.message : err);
@@ -231,7 +360,7 @@ function loadImages(files) {
   );
 }
 
-// ---------- 5. Algoritmo Híbrido (Palabra Clave + VAD / Pausas) ----------
+// ---------- 5. Algoritmo Híbrido ----------
 
 function cleanWord(str) {
   return str.toLowerCase().replace(/\.[^/.]+$/, "").replace(/[^a-z0-9áéíóúñäöüß]/gi, "");
@@ -242,7 +371,6 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   if (nImages === 0) return [];
   if (nImages === 1) return [{ imageIndex: 0, start: 0, end: totalDuration }];
 
-  // 1. Extraer palabras clave de los nombres de los archivos
   const imageKeys = loadedImages.map((item, idx) => ({
     index: idx,
     key: cleanWord(item.name)
@@ -251,12 +379,10 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   let matchedEvents = [];
   let matchedImageIndices = new Set();
 
-  // 2. Intentar emparejar por nombre de imagen vs transcripción
   if (segments && segments.length > 0) {
     for (const seg of segments) {
       const textClean = seg.text.toLowerCase();
       for (const imgObj of imageKeys) {
-        // Ignorar nombres genéricos comunes como "img", "photo", "image", etc.
         if (imgObj.key.length > 2 && !/^(img|image|photo|foto|picture|dsc)/.test(imgObj.key)) {
           if (textClean.includes(imgObj.key) && !matchedImageIndices.has(imgObj.index)) {
             matchedEvents.push({
@@ -270,11 +396,9 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     }
   }
 
-  // 3. Si se encontraron coincidencias por palabras clave, organizar la línea de tiempo por esos tiempos
   if (matchedEvents.length > 0) {
     matchedEvents.sort((a, b) => a.startTime - b.startTime);
 
-    // Asegurar que comience en el segundo 0
     if (matchedEvents[0].startTime > 0) {
       matchedEvents.unshift({ imageIndex: 0, startTime: 0 });
     }
@@ -290,11 +414,9 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
       });
     }
 
-    // Agregar imágenes no emparejadas al final si las hay
     return timeline;
   }
 
-  // 4. Fallback (Respaldo por pausas de voz / oraciones) si los nombres eran genéricos
   const totalSpeechDuration = segments && segments.length ? (segments[segments.length - 1].end - segments[0].start) : totalDuration;
   const targetDurationPerImage = totalSpeechDuration / nImages;
   let cutPoints = [0];
@@ -451,7 +573,6 @@ function formatTime(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// ---------- 7. Service Worker ----------
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
