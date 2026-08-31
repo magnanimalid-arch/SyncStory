@@ -1,4 +1,4 @@
-// SyncStory — Sincronización Híbrida + Sistema de Licencias 30 Días (Protegido por PIN)
+// SyncStory — Sincronización Híbrida + Licencias 30 Días + Transiciones Elegantes CapCut
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
 env.allowLocalModels = false;
@@ -6,10 +6,9 @@ env.allowLocalModels = false;
 // ==========================================
 // CONFIGURACIÓN Y SEGURIDAD DE LICENCIAS
 // ==========================================
-const CLAVE_SECRETA_ADMIN = "OroMusic2026"; // Frase secreta para firmar licencias
-const PIN_ADMIN = "5050"; // ¡CAMBIA ESTE PIN! Es la clave que usarás en tu celular para crear licencias
+const CLAVE_SECRETA_ADMIN = "OroMusic2026";
+const PIN_ADMIN = "5050";
 
-// Algoritmo de firma matemática (Hash)
 function generarFirma(fechaStr) {
   let str = fechaStr + CLAVE_SECRETA_ADMIN;
   let hash = 0;
@@ -21,7 +20,6 @@ function generarFirma(fechaStr) {
   return Math.abs(hash).toString(16).toUpperCase();
 }
 
-// Función protegida por PIN para generar licencias desde tu celular
 window.generarLicencia = function(dias = 30) {
   const pinIngresado = prompt("Ingresa tu PIN de Administrador:");
   if (pinIngresado !== PIN_ADMIN) {
@@ -39,11 +37,10 @@ window.generarLicencia = function(dias = 30) {
   const firma = generarFirma(fechaExp);
   const licencia = `SYNC-${fechaExp}-${firma}`;
   
-  alert(`LICENCIA GENERADA (${dias} DÍAS):\n\n${licencia}\n\nCopiala y envíala a tu cliente por WhatsApp.`);
+  alert(`LICENCIA GENERADA (${dias} DÍAS):\n\n${licencia}\n\nCópiala y envíala a tu cliente por WhatsApp.`);
   return licencia;
 };
 
-// Validar fecha real en internet (Anti-trampas de reloj local)
 async function obtenerFechaRealInternet() {
   try {
     const res = await fetch("https://worldtimeapi.org/api/ip");
@@ -77,10 +74,9 @@ async function verificarLicenciaCliente() {
     return false;
   }
 
-  const fechaExpStr = partes[1]; // AAAAMMDD
+  const fechaExpStr = partes[1];
   const firmaCliente = partes[2];
 
-  // 1. Verificar firma de seguridad
   const firmaValida = generarFirma(fechaExpStr);
   if (firmaCliente !== firmaValida) {
     alert("Licencia inválida o alterada ilegítimamente.");
@@ -88,13 +84,11 @@ async function verificarLicenciaCliente() {
     return false;
   }
 
-  // 2. Extraer fecha de vencimiento
   const ano = parseInt(fechaExpStr.substring(0, 4));
   const mes = parseInt(fechaExpStr.substring(4, 6)) - 1;
   const dia = parseInt(fechaExpStr.substring(6, 8));
   const fechaExpiracion = new Date(ano, mes, dia, 23, 59, 59);
 
-  // 3. Consultar fecha real de internet
   const fechaHoy = await obtenerFechaRealInternet();
   
   if (!fechaHoy) {
@@ -113,7 +107,7 @@ async function verificarLicenciaCliente() {
 }
 
 // ==========================================
-// ELEMENTOS DE LA INTERFAZ Y APLICACIÓN
+// ELEMENTOS DE LA INTERFAZ
 // ==========================================
 
 const el = {
@@ -147,8 +141,6 @@ const ctx2d = el.canvas ? el.canvas.getContext("2d", { alpha: false }) : null;
 let audioFile = null;
 let imageFiles = [];
 let outputBlobUrl = null;
-
-// ---------- 1. Selección de archivos ----------
 
 if (el.audioInput) {
   el.audioInput.addEventListener("change", () => {
@@ -199,11 +191,12 @@ function fail(message) {
   if (el.errorText) el.errorText.textContent = message;
 }
 
-// ---------- 2. Flujo Principal ----------
+// ==========================================
+// FLUJO PRINCIPAL
+// ==========================================
 
 if (el.runBtn) {
   el.runBtn.addEventListener("click", async () => {
-    // Verificar licencia antes de iniciar
     const licenciaOk = await verificarLicenciaCliente();
     if (!licenciaOk) return;
 
@@ -216,18 +209,15 @@ if (el.runBtn) {
       let wakeLock = null;
       try {
         if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
-      } catch { /* opcional */ }
+      } catch {}
 
-      // Decodificar audio
       setStatus(5, "Preparando…", "Decodificando audio");
       const { audioBuffer, monoData16k, objectUrl: audioUrl } = await decodeAudioForModel(audioFile);
       const duration = audioBuffer.duration;
 
-      // Cargar imágenes
       setStatus(10, "Preparando…", `Cargando ${imageFiles.length} imágenes`);
       const loadedImages = await loadImages(imageFiles);
 
-      // Transcribir con Whisper
       const lang = el.langSelect.value;
       const modelId = el.modelSelect.value;
       setStatus(15, "Transcribiendo…", "Cargando motor de voz e IA");
@@ -239,7 +229,7 @@ if (el.runBtn) {
         },
       });
 
-      setStatus(35, "Analizando locución…", "Buscando palabras clave y pausas de voz");
+      setStatus(35, "Analizando locución…", "Buscando pausas y cortes de voz");
       const result = await transcriber(monoData16k, {
         chunk_length_s: 30,
         stride_length_s: 5,
@@ -257,10 +247,9 @@ if (el.runBtn) {
         }))
         .filter((s) => s.end !== null && s.start !== null && s.end > s.start);
 
-      setStatus(60, "Sincronizando escenas…", "Aplicando coincidencia inteligente");
+      setStatus(60, "Sincronizando escenas…", "Configurando animación y transiciones");
       const timeline = buildHybridTimeline(loadedImages, speechSegments, duration);
 
-      // Generar video
       setStatus(65, "Generando video…", "0%");
       const blob = await renderVideo({
         images: loadedImages,
@@ -305,7 +294,9 @@ function explainError(err) {
   return `Ocurrió un error: ${msg}`;
 }
 
-// ---------- 3. Audio & Resampleo ----------
+// ==========================================
+// AUDIO & RESAMPLEO
+// ==========================================
 
 async function decodeAudioForModel(file) {
   const arrayBuffer = await file.arrayBuffer();
@@ -344,8 +335,6 @@ function resampleLinear(data, fromRate, toRate) {
   return out;
 }
 
-// ---------- 4. Carga de Imágenes ----------
-
 function loadImages(files) {
   return Promise.all(
     files.map(
@@ -360,73 +349,23 @@ function loadImages(files) {
   );
 }
 
-// ---------- 5. Algoritmo Híbrido ----------
-
-function cleanWord(str) {
-  return str.toLowerCase().replace(/\.[^/.]+$/, "").replace(/[^a-z0-9áéíóúñäöüß]/gi, "");
-}
+// ==========================================
+// GENERADOR DE LÍNEA DE TIEMPO MULTI-TRANSICIÓN
+// ==========================================
 
 function buildHybridTimeline(loadedImages, segments, totalDuration) {
   const nImages = loadedImages.length;
   if (nImages === 0) return [];
-  if (nImages === 1) return [{ imageIndex: 0, start: 0, end: totalDuration }];
 
-  const imageKeys = loadedImages.map((item, idx) => ({
-    index: idx,
-    key: cleanWord(item.name)
-  }));
-
-  let matchedEvents = [];
-  let matchedImageIndices = new Set();
-
-  if (segments && segments.length > 0) {
-    for (const seg of segments) {
-      const textClean = seg.text.toLowerCase();
-      for (const imgObj of imageKeys) {
-        if (imgObj.key.length > 2 && !/^(img|image|photo|foto|picture|dsc)/.test(imgObj.key)) {
-          if (textClean.includes(imgObj.key) && !matchedImageIndices.has(imgObj.index)) {
-            matchedEvents.push({
-              imageIndex: imgObj.index,
-              startTime: seg.start
-            });
-            matchedImageIndices.add(imgObj.index);
-          }
-        }
-      }
-    }
-  }
-
-  if (matchedEvents.length > 0) {
-    matchedEvents.sort((a, b) => a.startTime - b.startTime);
-
-    if (matchedEvents[0].startTime > 0) {
-      matchedEvents.unshift({ imageIndex: 0, startTime: 0 });
-    }
-
-    let timeline = [];
-    for (let i = 0; i < matchedEvents.length; i++) {
-      const current = matchedEvents[i];
-      const nextStart = (i === matchedEvents.length - 1) ? totalDuration : matchedEvents[i + 1].startTime;
-      timeline.push({
-        imageIndex: current.imageIndex,
-        start: current.startTime,
-        end: nextStart
-      });
-    }
-
-    return timeline;
-  }
-
-  const totalSpeechDuration = segments && segments.length ? (segments[segments.length - 1].end - segments[0].start) : totalDuration;
-  const targetDurationPerImage = totalSpeechDuration / nImages;
   let cutPoints = [0];
-  let accumulatedTime = 0;
-  let currentImgCount = 0;
-
+  const targetDuration = totalDuration / nImages;
+  
   if (segments && segments.length > 0) {
+    let accumulatedTime = 0;
+    let currentImgCount = 0;
     for (const seg of segments) {
       accumulatedTime += (seg.end - seg.start);
-      if (accumulatedTime >= targetDurationPerImage && currentImgCount < nImages - 1) {
+      if (accumulatedTime >= targetDuration && currentImgCount < nImages - 1) {
         cutPoints.push(seg.end);
         accumulatedTime = 0;
         currentImgCount++;
@@ -439,28 +378,96 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
 
+  // Animaciones de Zoom
+  const zoomTypes = ["zoom_in", "zoom_out", "pull_out_dramatic"];
+  
+  // Catálogo extendido de 8 transiciones elegantes
+  const transitionCatalog = [
+    "crossfade", 
+    "smooth_slide_right", 
+    "smooth_slide_left", 
+    "soft_flash", 
+    "zoom_blur", 
+    "fade_dark", 
+    "slide_up", 
+    "soft_vignette"
+  ];
+  
   let timeline = [];
+  let transitionState = { mode: "transition", remainingInBlock: Math.floor(Math.random() * 3) + 1 };
+  let recentTransitions = [];
+
   for (let i = 0; i < nImages; i++) {
+    const zoomMode = zoomTypes[i % zoomTypes.length];
+    let activeTransition = "none";
+
+    if (i < nImages - 1) {
+      if (transitionState.remainingInBlock <= 0) {
+        if (transitionState.mode === "transition") {
+          transitionState.mode = "hard_cut";
+          transitionState.remainingInBlock = Math.floor(Math.random() * 2) + 2; // 2 o 3 sin transición
+        } else {
+          transitionState.mode = "transition";
+          transitionState.remainingInBlock = Math.floor(Math.random() * 3) + 1; // 1, 2 o 3 con transición
+        }
+      }
+
+      if (transitionState.mode === "transition") {
+        // Filtrar para no repetir transiciones recientes
+        let available = transitionCatalog.filter(t => !recentTransitions.includes(t));
+        if (available.length === 0) available = transitionCatalog; // Resguardo
+
+        activeTransition = available[Math.floor(Math.random() * available.length)];
+        
+        // Mantener memoria de las últimas 3 transiciones usadas
+        recentTransitions.push(activeTransition);
+        if (recentTransitions.length > 3) recentTransitions.shift();
+      }
+      transitionState.remainingInBlock--;
+    }
+
     timeline.push({
       imageIndex: i,
       start: cutPoints[i],
-      end: (i === nImages - 1) ? totalDuration : cutPoints[i + 1]
+      end: (i === nImages - 1) ? totalDuration : cutPoints[i + 1],
+      zoomType: zoomMode,
+      transition: activeTransition,
+      transDuration: 0.6
     });
   }
 
   return timeline;
 }
 
-// ---------- 6. Renderizado de Canvas ----------
+// ==========================================
+// RENDERIZADO CANVAS CON ZOOMS Y TRANSICIONES
+// ==========================================
 
-function drawCover(image, canvas) {
+function drawImageWithZoom(image, canvas, progress, zoomType) {
   const cw = canvas.width, ch = canvas.height;
   const iw = image.naturalWidth, ih = image.naturalHeight;
-  const scale = Math.max(cw / iw, ch / ih);
-  const dw = iw * scale, dh = ih * scale;
+  
+  let scaleFactor = 1.0;
+
+  if (zoomType === "zoom_in") {
+    scaleFactor = 1.0 + (progress * 0.12);
+  } else if (zoomType === "zoom_out") {
+    scaleFactor = 1.15 - (progress * 0.12);
+  } else if (zoomType === "pull_out_dramatic") {
+    if (progress < 0.85) {
+      scaleFactor = 1.0 + (progress * 0.08);
+    } else {
+      const pullProgress = (progress - 0.85) / 0.15;
+      scaleFactor = 1.068 - (pullProgress * 0.10);
+    }
+  }
+
+  const baseScale = Math.max(cw / iw, ch / ih);
+  const finalScale = baseScale * scaleFactor;
+  
+  const dw = iw * finalScale, dh = ih * finalScale;
   const dx = (cw - dw) / 2, dy = (ch - dh) / 2;
-  ctx2d.fillStyle = "#000";
-  ctx2d.fillRect(0, 0, cw, ch);
+
   ctx2d.drawImage(image, dx, dy, dw, dh);
 }
 
@@ -514,7 +521,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
       return;
     }
 
-    const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 4_000_000 });
+    const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 4_500_000 });
     const chunks = [];
     recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
 
@@ -532,18 +539,105 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     recorder.onstop = cleanupAndResolve;
     recorder.onerror = (e) => { finished = true; cancelAnimationFrame(rafId); reject(e.error || new Error("Error en MediaRecorder")); };
 
-    function findImageIndexAt(t) {
-      for (const entry of timeline) {
-        if (t >= entry.start && t < entry.end) return entry.imageIndex;
-      }
-      return timeline[timeline.length - 1].imageIndex;
-    }
-
     function frameLoop() {
       if (finished) return;
       const t = audioEl.currentTime;
-      const idx = findImageIndexAt(t);
-      drawCover(rawImgs[Math.min(idx, rawImgs.length - 1)], el.canvas);
+
+      let currentIdx = 0;
+      for (let i = 0; i < timeline.length; i++) {
+        if (t >= timeline[i].start && t < timeline[i].end) {
+          currentIdx = i;
+          break;
+        }
+      }
+
+      const item = timeline[currentIdx];
+      const sceneDuration = item.end - item.start;
+      const sceneProgress = Math.min(1, Math.max(0, (t - item.start) / sceneDuration));
+      
+      const timeRemaining = item.end - t;
+      const isTrans = item.transition !== "none" && timeRemaining <= item.transDuration && currentIdx < timeline.length - 1;
+
+      ctx2d.fillStyle = "#000";
+      ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
+
+      if (!isTrans) {
+        drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+      } else {
+        const nextItem = timeline[currentIdx + 1];
+        const transProgress = 1 - (timeRemaining / item.transDuration);
+
+        if (item.transition === "crossfade") {
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.save();
+          ctx2d.globalAlpha = transProgress;
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
+        } 
+        else if (item.transition === "smooth_slide_right") {
+          const shiftX = el.canvas.width * (1 - transProgress);
+          ctx2d.save();
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.translate(shiftX, 0);
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
+        } 
+        else if (item.transition === "smooth_slide_left") {
+          const shiftX = -el.canvas.width * (1 - transProgress);
+          ctx2d.save();
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.translate(shiftX, 0);
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
+        }
+        else if (item.transition === "slide_up") {
+          const shiftY = el.canvas.height * (1 - transProgress);
+          ctx2d.save();
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.translate(0, shiftY);
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
+        }
+        else if (item.transition === "soft_flash") {
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.fillStyle = `rgba(255, 255, 255, ${Math.sin(transProgress * Math.PI) * 0.35})`;
+          ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
+          if (transProgress > 0.5) {
+            drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          }
+        } 
+        else if (item.transition === "zoom_blur") {
+          ctx2d.save();
+          ctx2d.globalAlpha = 1 - transProgress;
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.globalAlpha = transProgress;
+          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          ctx2d.restore();
+        }
+        else if (item.transition === "fade_dark") {
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          ctx2d.fillStyle = `rgba(0, 0, 0, ${Math.sin(transProgress * Math.PI)})`;
+          ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
+          if (transProgress > 0.5) {
+            drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          }
+        }
+        else if (item.transition === "soft_vignette") {
+          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
+          const gradient = ctx2d.createRadialGradient(
+            el.canvas.width / 2, el.canvas.height / 2, el.canvas.width * 0.3,
+            el.canvas.width / 2, el.canvas.height / 2, el.canvas.width * 0.7
+          );
+          gradient.addColorStop(0, 'rgba(0,0,0,0)');
+          gradient.addColorStop(1, `rgba(0,0,0,${Math.sin(transProgress * Math.PI) * 0.6})`);
+          ctx2d.fillStyle = gradient;
+          ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
+          if (transProgress > 0.5) {
+            drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
+          }
+        }
+      }
+
       onProgress(Math.min(1, t / duration));
 
       if (t >= duration - 0.05 || audioEl.ended) {
@@ -557,7 +651,6 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     audioEl.onerror = () => reject(new Error("Error al reproducir el audio para el renderizado"));
 
     audioEl.oncanplaythrough = () => {
-      drawCover(rawImgs[0], el.canvas);
       recorder.start(250);
       audioEl.currentTime = 0;
       audioEl.play().then(() => {
