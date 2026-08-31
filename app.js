@@ -378,6 +378,15 @@ function pickMimeType() {
 
 function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
   return new Promise((resolve, reject) => {
+    // 1. Configurar las dimensiones reales del canvas antes de grabar
+    const format = el.formatSelect ? el.formatSelect.value : "16:9";
+    if (format === "9:16" || format === "vertical") {
+      el.canvas.width = 1080;
+      el.canvas.height = 1920;
+    } else {
+      el.canvas.width = 1920;
+      el.canvas.height = 1080;
+    }
     const audioEl = new Audio();
     audioEl.src = audioUrl;
     audioEl.preload = "auto";
