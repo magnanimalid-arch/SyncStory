@@ -1,40 +1,68 @@
-const CLAVE_SECRETA_ADMIN = "OroMusic2026";
-const PIN_ADMIN = "5050";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Licencias</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #0f172a; color: #fff; margin: 0; }
+        .card { background: #1e293b; padding: 2rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-width: 400px; width: 90%; }
+        button { background: #3b82f6; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; margin-top: 1rem; width: 100%; font-weight: bold; }
+        button:hover { background: #2563eb; }
+        #resultado { margin-top: 1.5rem; word-break: break-all; background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid #334155; display: none; }
+    </style>
+</head>
+<body>
 
-function generarFirma(fechaStr) {
-    let str = fechaStr + CLAVE_SECRETA_ADMIN;
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash |= 0;
-    }
-    return Math.abs(hash).toString(16).toUpperCase();
-}
+    <div class="card">
+        <h1>🔑 Generador de Licencias</h1>
+        <p style="font-size: 14px; color: #94a3b8;">Genera claves válidas por 30 días para SyncStory.</p>
+        <button onclick="generar()">Generar Nueva Licencia</button>
+        <div id="resultado"></div>
+    </div>
 
-function generar() {
-    const pin = prompt("Ingrese el PIN de Administrador:");
-    if (pin !== PIN_ADMIN) {
-        alert("PIN incorrecto.");
-        return;
-    }
+    <script>
+        const CLAVE_SECRETA_ADMIN = "OroMusic2026";
+        const PIN_ADMIN = "5050";
 
-    const hoy = new Date();
-    hoy.setDate(hoy.getDate() + 30);
+        function generarFirma(fechaStr) {
+            let str = fechaStr + CLAVE_SECRETA_ADMIN;
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash |= 0;
+            }
+            return Math.abs(hash).toString(16).toUpperCase();
+        }
 
-    const yyyy = hoy.getFullYear();
-    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
-    const dd = String(hoy.getDate()).padStart(2, '0');
+        function generar() {
+            const pin = prompt("Ingrese el PIN de Administrador:");
+            if (pin !== PIN_ADMIN) {
+                alert("PIN incorrecto.");
+                return;
+            }
 
-    const fechaExp = `${yyyy}${mm}${dd}`;
-    const firma = generarFirma(fechaExp);
-    const clave = `SYNC-${fechaExp}-${firma}`;
+            const hoy = new Date();
+            hoy.setDate(hoy.getDate() + 30);
 
-    const divRes = document.getElementById("resultado");
-    if (divRes) {
-        divRes.style.display = "block";
-        divRes.innerHTML = "<strong>Clave Generada:</strong> " + clave;
-    }
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
 
-    prompt("Copia esta clave de 30 días:", clave);
-}
+            const fechaExp = `${yyyy}${mm}${dd}`;
+            const firma = generarFirma(fechaExp);
+            const clave = `SYNC-${fechaExp}-${firma}`;
+
+            const divRes = document.getElementById("resultado");
+            if (divRes) {
+                divRes.style.display = "block";
+                divRes.innerHTML = "<strong>Clave Generada:</strong><br>" + clave;
+            }
+
+            prompt("Copia esta clave de 30 días:", clave);
+        }
+    </script>
+
+</body>
+</html>
