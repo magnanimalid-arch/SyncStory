@@ -385,7 +385,8 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
 
-  const zoomTypes = ["zoom_in_pan_right", "zoom_out_pan_left", "pull_out_dramatic"];
+  // Alterna automáticamente entre los 3 tipos de movimiento
+  const zoomTypes = ["zoom_in_pan_right", "zoom_out_pan_left", "zoom_breath_combined"];
   
   const transitionCatalog = [
     "crossfade", 
@@ -403,7 +404,7 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   let recentTransitions = [];
 
   for (let i = 0; i < nImages; i++) {
-    const zoomMode = zoomTypes[i % zoomTypes.length];
+    const zoomMode = zoomTypes[i % zoomTypes.length]; // Va cambiando: 1=In, 2=Out, 3=Combinado
     let activeTransition = "none";
 
     if (i < nImages - 1) {
@@ -441,9 +442,15 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   return timeline;
 }
 
-  // ==========================================
-// RENDERIZADO CANVAS CON MOVIMIENTO Y TRANSICIONES ELEGANTES
-// (Efecto Respiración Combinado: Zoom In -> Zoom Out fluido por imagen)
+// ==========================================
+// FUNCIÓN DE EASING (Suavizado profesional tipo CapCut)
+// ==========================================
+function easeInOutCubic(x) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+// ==========================================
+// RENDERIZADO CANVAS CON MOVIMIENTO FLUIDO Y COMBINADO
 // ==========================================
 
 function drawImageWithZoom(image, canvas, progress, zoomType) {
@@ -454,26 +461,26 @@ function drawImageWithZoom(image, canvas, progress, zoomType) {
   let offsetX = 0;
   let offsetY = 0;
 
-  // Curva Senoidal Completa (0 a PI):
-  // Comienza en 0, sube suavemente al máximo al 50% de la toma (Zoom In),
-  // y vuelve a bajar suavemente al 100% de la toma (Zoom Out).
-  const breathCycle = Math.sin(progress * Math.PI); 
+  // Aceleración suave ultra fluida tipo CapCut
+  const smoothProgress = easeInOutCubic(progress);
 
-  // Determinar la dirección de paneo según el tipo de animación
-  if (zoomType === "zoom_in_pan_right" || zoomType === "zoom_in") {
-    // Escala base (1.05) + Respiración fluida hasta (1.28)
-    scaleFactor = 1.05 + (breathCycle * 0.23);
-    // Paneo horizontal uniforme hacia la derecha
-    offsetX = (progress - 0.5) * (cw * 0.04); 
-  } else if (zoomType === "zoom_out_pan_left" || zoomType === "zoom_out") {
-    // Inverso: Inicia amplio (1.28), se acerca al centro y vuelve a alejarse (1.05)
-    scaleFactor = 1.28 - (breathCycle * 0.23);
-    // Paneo horizontal uniforme hacia la izquierda
-    offsetX = (0.5 - progress) * (cw * 0.04);
+  if (zoomType === "zoom_in_pan_right") {
+    // FOTO 1: Solo Acercamiento (Zoom In elegante)
+    scaleFactor = 1.03 + (smoothProgress * 0.16);
+    offsetX = (smoothProgress - 0.5) * (cw * 0.025);
+
+  } else if (zoomType === "zoom_out_pan_left") {
+    // FOTO 2: Solo Alejamiento (Zoom Out elegante)
+    scaleFactor = 1.19 - (smoothProgress * 0.16);
+    offsetX = (0.5 - smoothProgress) * (cw * 0.025);
+
   } else {
-    // Efecto dramático vertical: Zoom con ligera elevación
-    scaleFactor = 1.06 + (breathCycle * 0.20);
-    offsetY = (progress - 0.5) * (ch * 0.03);
+    // FOTO 3: Combinación en una misma imagen (Acerca en 50% y Aleja en 100%)
+    const breathCycle = Math.sin(progress * Math.PI); // Curva Senoidal
+    const smoothBreath = easeInOutCubic(breathCycle);
+    
+    scaleFactor = 1.04 + (smoothBreath * 0.15);
+    offsetY = (smoothProgress - 0.5) * (ch * 0.02);
   }
 
   const baseScale = Math.max(cw / iw, ch / ih);
@@ -522,7 +529,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     const destNode = audioCtx.createMediaStreamDestination();
     sourceNode.connect(destNode);
 
-    const canvasStream = el.canvas.captureStream(60); // 60 FPS fluidez total
+    const canvasStream = el.canvas.captureStream(60); // 60 FPS
     const combined = new MediaStream([
       ...canvasStream.getVideoTracks(),
       ...destNode.stream.getAudioTracks(),
@@ -584,7 +591,6 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
         const nextItem = timeline[currentIdx + 1];
         const transProgress = 1 - (timeRemaining / item.transDuration);
 
-        // TRANSICIONES PROFESIONALES DE ALTO IMPACTO (MEZCLA Y DESTELLOS TENUES)
         if (item.transition === "crossfade" || item.transition === "zoom_blur" || item.transition === "soft_vignette") {
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
@@ -622,7 +628,6 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.globalAlpha = transProgress;
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
-          // Destello tenue sobrio (máximo 20% de brillo)
           ctx2d.fillStyle = `rgba(255, 255, 255, ${Math.sin(transProgress * Math.PI) * 0.20})`;
           ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
         } 
@@ -632,7 +637,6 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.globalAlpha = transProgress;
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
-          // Fundido sobrio a tono oscuro
           ctx2d.fillStyle = `rgba(0, 0, 0, ${Math.sin(transProgress * Math.PI) * 0.35})`;
           ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
         }
@@ -665,10 +669,10 @@ function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
-}     
-  
+}
+                  
 
-    if ("serviceWorker" in navigator) {
+ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
