@@ -385,8 +385,13 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
 
-  // Alterna automáticamente entre los 3 tipos de movimiento
-  const zoomTypes = ["zoom_in_pan_right", "zoom_out_pan_left", "zoom_breath_combined"];
+  // 4 variaciones de movimiento profesional que rotan automáticamente por imagen
+  const zoomTypes = [
+    "zoom_in_pan_right", 
+    "zoom_out_pan_left", 
+    "zoom_in_up", 
+    "zoom_out_center"
+  ];
   
   const transitionCatalog = [
     "crossfade", 
@@ -404,7 +409,7 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   let recentTransitions = [];
 
   for (let i = 0; i < nImages; i++) {
-    const zoomMode = zoomTypes[i % zoomTypes.length]; // Va cambiando: 1=In, 2=Out, 3=Combinado
+    const zoomMode = zoomTypes[i % zoomTypes.length];
     let activeTransition = "none";
 
     if (i < nImages - 1) {
@@ -443,52 +448,57 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
 }
 
 // ==========================================
-// FUNCIÓN DE EASING (Suavizado profesional tipo CapCut)
+// CURVA DE ACELERACIÓN PROFESIONAL (Quintic Ease-In-Out)
+// Elimina arranques bruscos y frena con fluidez orgánica
 // ==========================================
-function easeInOutCubic(x) {
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+function easeInOutQuint(x) {
+  return x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2;
 }
 
 // ==========================================
-// RENDERIZADO CANVAS CON MOVIMIENTO FLUIDO Y COMBINADO
+// RENDERIZADO CANVAS CON ZOOMS ULTRA FLUIDOS
 // ==========================================
 
 function drawImageWithZoom(image, canvas, progress, zoomType) {
   const cw = canvas.width, ch = canvas.height;
   const iw = image.naturalWidth, ih = image.naturalHeight;
   
+  const p = Math.min(1, Math.max(0, progress));
+  const smoothP = easeInOutQuint(p);
+
   let scaleFactor = 1.0;
   let offsetX = 0;
   let offsetY = 0;
 
-  // Aceleración suave ultra fluida tipo CapCut
-  const smoothProgress = easeInOutCubic(progress);
+  // Escala sobria del 8% ideal para mantener alta retención sin marear
+  const MAX_ZOOM = 0.08; 
 
   if (zoomType === "zoom_in_pan_right") {
-    // FOTO 1: Solo Acercamiento (Zoom In elegante)
-    scaleFactor = 1.03 + (smoothProgress * 0.16);
-    offsetX = (smoothProgress - 0.5) * (cw * 0.025);
+    scaleFactor = 1.02 + (smoothP * MAX_ZOOM);
+    offsetX = (smoothP - 0.5) * (cw * 0.015);
 
   } else if (zoomType === "zoom_out_pan_left") {
-    // FOTO 2: Solo Alejamiento (Zoom Out elegante)
-    scaleFactor = 1.19 - (smoothProgress * 0.16);
-    offsetX = (0.5 - smoothProgress) * (cw * 0.025);
+    scaleFactor = (1.02 + MAX_ZOOM) - (smoothP * MAX_ZOOM);
+    offsetX = (0.5 - smoothP) * (cw * 0.015);
+
+  } else if (zoomType === "zoom_in_up") {
+    scaleFactor = 1.02 + (smoothP * (MAX_ZOOM + 0.01));
+    offsetY = (0.5 - smoothP) * (ch * 0.012);
 
   } else {
-    // FOTO 3: Combinación en una misma imagen (Acerca en 50% y Aleja en 100%)
-    const breathCycle = Math.sin(progress * Math.PI); // Curva Senoidal
-    const smoothBreath = easeInOutCubic(breathCycle);
-    
-    scaleFactor = 1.04 + (smoothBreath * 0.15);
-    offsetY = (smoothProgress - 0.5) * (ch * 0.02);
+    scaleFactor = (1.03 + MAX_ZOOM) - (smoothP * MAX_ZOOM);
+    offsetY = (smoothP - 0.5) * (ch * 0.01);
   }
 
   const baseScale = Math.max(cw / iw, ch / ih);
   const finalScale = baseScale * scaleFactor;
   
-  const dw = iw * finalScale, dh = ih * finalScale;
-  const dx = ((cw - dw) / 2) + offsetX;
-  const dy = ((ch - dh) / 2) + offsetY;
+  const dw = iw * finalScale;
+  const dh = ih * finalScale;
+  
+  // Math.round elimina quebrados y saltos de píxeles al dibujar en el Canvas
+  const dx = Math.round(((cw - dw) / 2) + offsetX);
+  const dy = Math.round(((ch - dh) / 2) + offsetY);
 
   ctx2d.drawImage(image, dx, dy, dw, dh);
 }
@@ -529,7 +539,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     const destNode = audioCtx.createMediaStreamDestination();
     sourceNode.connect(destNode);
 
-    const canvasStream = el.canvas.captureStream(60); // 60 FPS
+    const canvasStream = el.canvas.captureStream(60);
     const combined = new MediaStream([
       ...canvasStream.getVideoTracks(),
       ...destNode.stream.getAudioTracks(),
@@ -599,7 +609,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.restore();
         } 
         else if (item.transition === "smooth_slide_right") {
-          const shiftX = el.canvas.width * (1 - transProgress);
+          const shiftX = Math.round(el.canvas.width * (1 - transProgress));
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.translate(shiftX, 0);
@@ -607,7 +617,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.restore();
         } 
         else if (item.transition === "smooth_slide_left") {
-          const shiftX = -el.canvas.width * (1 - transProgress);
+          const shiftX = Math.round(-el.canvas.width * (1 - transProgress));
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.translate(shiftX, 0);
@@ -615,7 +625,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.restore();
         }
         else if (item.transition === "slide_up") {
-          const shiftY = el.canvas.height * (1 - transProgress);
+          const shiftY = Math.round(el.canvas.height * (1 - transProgress));
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.translate(0, shiftY);
@@ -670,9 +680,8 @@ function formatTime(sec) {
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
-                  
-
- if ("serviceWorker" in navigator) {
+          
+if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
