@@ -441,8 +441,8 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   return timeline;
 }
 
-// ==========================================
-// RENDERIZADO CANVAS CON MOVIMIENTO EFECTO KEN BURNS
+       // ==========================================
+// RENDERIZADO CANVAS CON MOVIMIENTO Y TRANSICIONES ELEGANTES
 // ==========================================
 
 function drawImageWithZoom(image, canvas, progress, zoomType) {
@@ -453,20 +453,20 @@ function drawImageWithZoom(image, canvas, progress, zoomType) {
   let offsetX = 0;
   let offsetY = 0;
 
-  // Aumentado al 22% de zoom con paneo activo (Efecto Ken Burns)
-  if (zoomType === "zoom_in_pan_right") {
-    scaleFactor = 1.05 + (progress * 0.22);
-    offsetX = (progress - 0.5) * (cw * 0.05); 
-  } else if (zoomType === "zoom_out_pan_left") {
-    scaleFactor = 1.27 - (progress * 0.22);
-    offsetX = (0.5 - progress) * (cw * 0.05);
+  // Zoom suave y controlado (15% - 18%) para mantener seriedad y profesionalismo
+  if (zoomType === "zoom_in_pan_right" || zoomType === "zoom_in") {
+    scaleFactor = 1.04 + (progress * 0.15);
+    offsetX = (progress - 0.5) * (cw * 0.025); 
+  } else if (zoomType === "zoom_out_pan_left" || zoomType === "zoom_out") {
+    scaleFactor = 1.18 - (progress * 0.15);
+    offsetX = (0.5 - progress) * (cw * 0.025);
   } else if (zoomType === "pull_out_dramatic") {
     if (progress < 0.8) {
-      scaleFactor = 1.05 + (progress * 0.15);
-      offsetY = (progress - 0.5) * (ch * 0.04);
+      scaleFactor = 1.04 + (progress * 0.10);
+      offsetY = (progress - 0.5) * (ch * 0.025);
     } else {
       const pullProgress = (progress - 0.8) / 0.2;
-      scaleFactor = 1.17 - (pullProgress * 0.12);
+      scaleFactor = 1.12 - (pullProgress * 0.08);
     }
   }
 
@@ -552,7 +552,6 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
     function frameLoop(now) {
       if (finished) return;
       
-      // Reloj de tiempo de alta precisión a 60 fps
       const t = Math.min(duration, (now - startTime) / 1000);
 
       let currentIdx = 0;
@@ -579,7 +578,8 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
         const nextItem = timeline[currentIdx + 1];
         const transProgress = 1 - (timeRemaining / item.transDuration);
 
-        if (item.transition === "crossfade" || item.transition === "zoom_blur") {
+        // TRANSICIONES ELEGANTES SOBRIAS PARA EL NICHO DE FINANZAS
+        if (item.transition === "crossfade" || item.transition === "zoom_blur" || item.transition === "soft_vignette") {
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.globalAlpha = transProgress;
@@ -616,7 +616,8 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.globalAlpha = transProgress;
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
-          ctx2d.fillStyle = `rgba(255, 255, 255, ${Math.sin(transProgress * Math.PI) * 0.4})`;
+          // Destello tenue sobrio (máximo 20% de brillo)
+          ctx2d.fillStyle = `rgba(255, 255, 255, ${Math.sin(transProgress * Math.PI) * 0.20})`;
           ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
         } 
         else if (item.transition === "fade_dark") {
@@ -625,15 +626,9 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.globalAlpha = transProgress;
           drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
           ctx2d.restore();
-          ctx2d.fillStyle = `rgba(0, 0, 0, ${Math.sin(transProgress * Math.PI) * 0.6})`;
+          // Fundido elegante a tono oscuro
+          ctx2d.fillStyle = `rgba(0, 0, 0, ${Math.sin(transProgress * Math.PI) * 0.35})`;
           ctx2d.fillRect(0, 0, el.canvas.width, el.canvas.height);
-        }
-        else if (item.transition === "soft_vignette") {
-          drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
-          ctx2d.save();
-          ctx2d.globalAlpha = transProgress;
-          drawImageWithZoom(rawImgs[nextItem.imageIndex], el.canvas, 0, nextItem.zoomType);
-          ctx2d.restore();
         }
       }
 
