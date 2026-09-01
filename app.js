@@ -356,8 +356,8 @@ function loadImages(files) {
   );
 }
 
-// ==========================================
-// LÍNEA DE TIEMPO Y ANIMACIONES DINÁMICAS
+  // ==========================================
+// LÍNEA DE TIEMPO CON ZOOMS ALEATORIOS FACELESS
 // ==========================================
 
 function buildHybridTimeline(loadedImages, segments, totalDuration) {
@@ -385,12 +385,12 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
     cutPoints.push(lastCut + ((totalDuration - lastCut) / (nImages - cutPoints.length + 1)));
   }
 
-  // 4 variaciones de movimiento profesional que rotan automáticamente por imagen
-  const zoomTypes = [
-    "zoom_in_pan_right", 
-    "zoom_out_pan_left", 
-    "zoom_in_up", 
-    "zoom_out_center"
+  // Los 4 tipos de Zoom más usados en YouTube Faceless
+  const zoomCatalog = [
+    "zoom_in_linear", 
+    "zoom_out_linear", 
+    "breath_70_30", 
+    "diagonal_zoom"
   ];
   
   const transitionCatalog = [
@@ -407,9 +407,14 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
   let timeline = [];
   let transitionState = { mode: "transition", remainingInBlock: Math.floor(Math.random() * 3) + 1 };
   let recentTransitions = [];
+  let lastZoomMode = "";
 
   for (let i = 0; i < nImages; i++) {
-    const zoomMode = zoomTypes[i % zoomTypes.length];
+    // Selección ALEATORIA del zoom sin repetir el mismo consecutivamente
+    let availableZooms = zoomCatalog.filter(z => z !== lastZoomMode);
+    const zoomMode = availableZooms[Math.floor(Math.random() * availableZooms.length)];
+    lastZoomMode = zoomMode;
+
     let activeTransition = "none";
 
     if (i < nImages - 1) {
@@ -448,46 +453,51 @@ function buildHybridTimeline(loadedImages, segments, totalDuration) {
 }
 
 // ==========================================
-// CURVA DE ACELERACIÓN PROFESIONAL (Quintic Ease-In-Out)
-// Elimina arranques bruscos y frena con fluidez orgánica
-// ==========================================
-function easeInOutQuint(x) {
-  return x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2;
-}
-
-// ==========================================
-// RENDERIZADO CANVAS CON ZOOMS ULTRA FLUIDOS
+// RENDERIZADO CANVAS CON MOVIMIENTO CONTINUO Y FLUIDO
+// (Movimiento lineal continuo sin pausas ni frenados)
 // ==========================================
 
 function drawImageWithZoom(image, canvas, progress, zoomType) {
   const cw = canvas.width, ch = canvas.height;
   const iw = image.naturalWidth, ih = image.naturalHeight;
   
+  // Garantizar que el progreso se mantenga constante de 0.0 a 1.0
   const p = Math.min(1, Math.max(0, progress));
-  const smoothP = easeInOutQuint(p);
 
   let scaleFactor = 1.0;
   let offsetX = 0;
   let offsetY = 0;
 
-  // Escala sobria del 8% ideal para mantener alta retención sin marear
-  const MAX_ZOOM = 0.08; 
+  // Escala cinematográfica constante (14%)
+  const ZOOM_DEPTH = 0.14; 
 
-  if (zoomType === "zoom_in_pan_right") {
-    scaleFactor = 1.02 + (smoothP * MAX_ZOOM);
-    offsetX = (smoothP - 0.5) * (cw * 0.015);
+  if (zoomType === "zoom_in_linear") {
+    // PATRÓN 1: Zoom In constante de 0% a 100% de la toma
+    scaleFactor = 1.02 + (p * ZOOM_DEPTH);
+    offsetX = (p - 0.5) * (cw * 0.012);
 
-  } else if (zoomType === "zoom_out_pan_left") {
-    scaleFactor = (1.02 + MAX_ZOOM) - (smoothP * MAX_ZOOM);
-    offsetX = (0.5 - smoothP) * (cw * 0.015);
+  } else if (zoomType === "zoom_out_linear") {
+    // PATRÓN 2: Zoom Out constante de 0% a 100% de la toma
+    scaleFactor = (1.02 + ZOOM_DEPTH) - (p * ZOOM_DEPTH);
+    offsetX = (0.5 - p) * (cw * 0.012);
 
-  } else if (zoomType === "zoom_in_up") {
-    scaleFactor = 1.02 + (smoothP * (MAX_ZOOM + 0.01));
-    offsetY = (0.5 - smoothP) * (ch * 0.012);
+  } else if (zoomType === "breath_70_30") {
+    // PATRÓN 3: 70% Acercándose -> 30% Alejándose al punto inicial
+    if (p <= 0.70) {
+      const subP = p / 0.70;
+      scaleFactor = 1.02 + (subP * ZOOM_DEPTH);
+      offsetY = (subP - 0.5) * (ch * 0.01);
+    } else {
+      const subP = (p - 0.70) / 0.30;
+      scaleFactor = (1.02 + ZOOM_DEPTH) - (subP * ZOOM_DEPTH);
+      offsetY = (0.5 - subP) * (ch * 0.01);
+    }
 
   } else {
-    scaleFactor = (1.03 + MAX_ZOOM) - (smoothP * MAX_ZOOM);
-    offsetY = (smoothP - 0.5) * (ch * 0.01);
+    // PATRÓN 4: Diagonal Zoom In (Movimiento de cámara dinámico)
+    scaleFactor = 1.03 + (p * ZOOM_DEPTH);
+    offsetX = (p - 0.5) * (cw * 0.018);
+    offsetY = (p - 0.5) * (ch * 0.012);
   }
 
   const baseScale = Math.max(cw / iw, ch / ih);
@@ -496,9 +506,9 @@ function drawImageWithZoom(image, canvas, progress, zoomType) {
   const dw = iw * finalScale;
   const dh = ih * finalScale;
   
-  // Math.round elimina quebrados y saltos de píxeles al dibujar en el Canvas
-  const dx = Math.round(((cw - dw) / 2) + offsetX);
-  const dy = Math.round(((ch - dh) / 2) + offsetY);
+  // Posicionamiento preciso en Canvas sin brincos robóticos
+  const dx = ((cw - dw) / 2) + offsetX;
+  const dy = ((ch - dh) / 2) + offsetY;
 
   ctx2d.drawImage(image, dx, dy, dw, dh);
 }
@@ -609,7 +619,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.restore();
         } 
         else if (item.transition === "smooth_slide_right") {
-          const shiftX = Math.round(el.canvas.width * (1 - transProgress));
+          const shiftX = el.canvas.width * (1 - transProgress);
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.translate(shiftX, 0);
@@ -617,7 +627,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.restore();
         } 
         else if (item.transition === "smooth_slide_left") {
-          const shiftX = Math.round(-el.canvas.width * (1 - transProgress));
+          const shiftX = -el.canvas.width * (1 - transProgress);
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.translate(shiftX, 0);
@@ -625,7 +635,7 @@ function renderVideo({ images, timeline, audioUrl, duration, onProgress }) {
           ctx2d.restore();
         }
         else if (item.transition === "slide_up") {
-          const shiftY = Math.round(el.canvas.height * (1 - transProgress));
+          const shiftY = el.canvas.height * (1 - transProgress);
           drawImageWithZoom(rawImgs[item.imageIndex], el.canvas, sceneProgress, item.zoomType);
           ctx2d.save();
           ctx2d.translate(0, shiftY);
@@ -680,6 +690,7 @@ function formatTime(sec) {
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+      
           
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
